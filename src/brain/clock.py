@@ -44,16 +44,3 @@ def require_utc(value: datetime) -> datetime:
     if result is None:  # pragma: no cover - chỉ xảy ra nếu gọi sai kiểu
         raise ValueError("giá trị bắt buộc nhưng nhận None")
     return result
-
-
-def is_before_or_equal(a: datetime | None, b: datetime | None) -> bool:
-    """`a <= b` với ngữ nghĩa bi-temporal: `None` = vô hạn, nên không so được.
-
-    Trả `False` khi một trong hai là `None` — khớp đúng cách Graphiti chắn NULL
-    ở `resolve_edge_contradictions` (mọi nhánh đều yêu cầu `is not None` trước
-    khi so sánh). Nhờ vậy nhánh "không mâu thuẫn" ở §7.5 không bao giờ được
-    kích hoạt nhầm bởi một khoảng mở.
-    """
-    if a is None or b is None:
-        return False
-    return ensure_utc(a) <= ensure_utc(b)  # type: ignore[operator]  # đã loại None

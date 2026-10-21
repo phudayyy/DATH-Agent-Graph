@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Dữ liệu của đề (tải riêng, không phân phối lại) và kết quả chạy
+/data/
+/runs/

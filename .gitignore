@@ -1,0 +1,40 @@
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# === Data files (too large for git; download data_v2.zip separately) ===
+data/wikidata_big/kg/
+data/wikidata_big/questions/
+
+# === Model checkpoints (download from CronKGQA repo) ===
+models/
+
+# === Permission generated output (re-generate with scripts/generate_permissions.py --seed 42) ===
+# roles_*.json are 24-33 MB each — too large for git.
+# Keep permissions_*.jsonl (115 KB each) and generation_summary.json.
+permission/output/roles_*.json
+
+# === Reproduce check temp dirs ===
+permission/output_repro_a/
+permission/output_repro_b/
+
+# === Pytest ===
+.pytest_cache/
+
+# === IDE / OS ===
+.vscode/
+.idea/
+*.swp
+*~
+Thumbs.db
+.DS_Store
+
+# === Misc ===
+*.zip
+*.tar.gz

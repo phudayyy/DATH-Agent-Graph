@@ -204,12 +204,6 @@ Q11696	domain:lab.test
 
 Principal là một email, `group:<tên>`, `domain:<tên>` hoặc `anyone`; `--identity` chọn người hỏi.
 
-## Giới hạn hiện tại
-
-- Chưa có bộ chọn đáp án: bộ chạy báo **đáp án có nằm trong gói không** — trần trên của Hits@1 cho mọi cách trả lời chỉ đọc gói — chứ chưa ra Hits@1, và chưa xuất theo *Output Contract* bên trên.
-- Quyền đang gán theo **thực thể**; nhãn quyền theo **sự kiện** của *Bộ sinh mạng lưới quyền* chưa được nối vào bộ nạp.
-- Bộ nạp gộp các khoảng chồng nhau và bỏ dòng có năm bắt đầu sau năm kết thúc, nên chưa giữ `event_id` theo số dòng `full.txt` như mục *Dữ liệu CRONQUESTIONS bản data_v2* quy định.
-
 ## Nguồn gốc mã nguồn
 
 `src/brain/` là một phần nhỏ của hệ riêng của tác giả (finch-brain), lấy tại mốc đóng băng 28/09/2026: chép nguyên văn từng byte rồi mới cắt gọn. [`PROVENANCE.md`](PROVENANCE.md) liệt kê từng file với git blob tại mốc và phần được giữ lại. Mọi thứ khác trong `src/agent_graph/` và `tests/` được viết cho đồ án này.

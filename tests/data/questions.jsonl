@@ -1,0 +1,4 @@
+{"qid": "q1", "question": "Who held Mayor of Springfield in 1994", "type": "simple_entity", "answer_type": "entity", "entities": ["Q1"], "times": [1994], "answers": ["Q10"], "relations": ["P39"]}
+{"qid": "q2", "question": "Who held Mayor of Springfield in 1995", "type": "simple_entity", "answer_type": "entity", "entities": ["Q1"], "times": [1995], "answers": ["Q11"], "relations": ["P39"]}
+{"qid": "q3", "question": "When did Bob Tran hold Mayor of Springfield", "type": "simple_time", "answer_type": "time", "entities": ["Q1", "Q11"], "times": [], "answers": [1995], "relations": ["P39"]}
+{"qid": "q4", "question": "Who was the first Mayor of Springfield", "type": "first_last", "answer_type": "entity", "entities": ["Q1"], "times": [], "answers": ["Q10"], "relations": ["P39"]}

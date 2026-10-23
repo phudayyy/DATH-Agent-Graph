@@ -19,3 +19,19 @@ Check any file against the baseline: `git hash-object <path>` at that commit mus
 | `migrations/versions/0001_initial_schema.py` | `cda143212ab50b86015471c76bcee7512a751a38` | 414 |
 
 Every later change to these files is work done for this project — `git log -p --follow <path>` shows each one.
+
+## Cut down to what CRONQUESTIONS needs
+
+The commit after the import keeps only what the dataset exercises — 2,963 imported lines become 633 — and
+moves the schema out of an Alembic migration into one SQL file:
+
+| File | Kept | Removed |
+|---|---|---|
+| `src/brain/clock.py` | `utc_now`, `ensure_utc`, `require_utc` | `is_before_or_equal` |
+| `src/brain/platforms.py` | the ACL predicate, built from the list of entity kinds | 26 platform manifests; 14 entity kinds become 3 (`person`, `group`, `item`) |
+| `src/brain/retrieve/acl.py` | all of it | — |
+| `src/brain/retrieve/pack.py` | the pack, its line format, `GAPS`, the permission cut before anything is trimmed | passages, facts, staleness, reranking; the token budget becomes a cap on lines |
+| `src/brain/resolve/hardkey.py` | `normalize_email` | entity resolution for every platform |
+| `migrations/versions/0001_initial_schema.py` | `tenants`, `entities`, `edges`, `acl`, now in `src/agent_graph/schema.sql` | every other table; the `btree_gist` overlap constraint — the loader merges overlapping intervals instead |
+
+Everything under `src/agent_graph/` other than `schema.sql`, and everything under `tests/`, was written for this project.

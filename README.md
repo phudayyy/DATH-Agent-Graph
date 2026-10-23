@@ -1,10 +1,83 @@
-# CO3101 G1 - Khung Đánh Giá Đề Tài (Evaluation Framework)
+# ĐATH - Agent Graph · CO3101 G1
 
 Đề tài: **Đo lường tác động của cơ chế lọc quyền truy cập và lọc thời gian (as-of) lên hệ thống Temporal KGQA.**
 
----
+## Tổng quan
 
-## 1. Dữ liệu CRONQUESTIONS bản data_v2
+Kho này gồm hai phần:
+
+- **Hệ thống** (`src/`): một đồ thị tri thức tối thiểu trả lời câu hỏi [CRONQUESTIONS](https://github.com/apoorvumang/CronKGQA) qua một **gói ngữ cảnh** (context pack), giữ hai tính chất của hệ mà nó được cắt ra:
+  - **Bi-temporal.** Mỗi sự kiện mang thời điểm nó đúng ngoài đời (`valid_from`/`valid_to`) và thời điểm được ghi nhận (`observed_at`/`expired_at`). Câu hỏi được hỏi *tại một mốc* (`as_of`), và chỉ những gì đúng tại mốc đó mới hiện ra.
+  - **Lọc quyền, mặc định đóng (fail-closed).** Một thực thể chỉ hiện với principal mà một hàng ACL cấp, trong đúng những năm hàng đó bao phủ. Bước cắt quyền chạy trước mọi bước cắt gói, và gói cho biết có bao nhiêu đối tượng liên quan bị giữ lại — không cho biết là đối tượng nào.
+- **Khung đánh giá** (mục *Khung đánh giá* bên dưới): dữ liệu `data_v2`, tập 1.500 câu đã khoá, bộ sinh mạng lưới quyền, các lệnh tái lập và định dạng kết quả.
+
+## Yêu cầu hệ thống
+
+- Python 3.12 trở lên và [uv](https://docs.astral.sh/uv/).
+- Không cần cài Postgres hay Docker: Postgres chạy nhúng qua `pgserver`.
+
+## Cài đặt
+
+```bash
+git clone https://github.com/phudayyy/DATH-Agent-Graph.git
+cd DATH-Agent-Graph
+uv sync --extra dev
+```
+
+## Chạy thử nhanh (Smoke test)
+
+Một lệnh chạy từ đầu đến cuối trên bộ dữ liệu mẫu kèm sẵn trong `tests/data/` (cùng định dạng `data_v2`): dựng Postgres nhúng, nạp đồ thị, hỏi 4 câu, ghi mỗi câu một dòng JSON vào `runs/smoke.jsonl` và in độ phủ đáp án theo loại câu.
+
+```bash
+uv run python -m agent_graph.run --kg tests/data/kg --questions tests/data/questions.jsonl --out runs/smoke.jsonl
+```
+
+Kết quả mong đợi (mã thoát 0):
+
+```
+load: {"lines": 11, "malformed": 2, "out_of_range": 1, "reversed": 1, "self_loop": 1, "merged": 1, "facts": 5, "entities": 6, "grants": 6, "unknown_grant_items": 0}
+    first_last:     0 / 1     đáp án nằm trong gói
+ simple_entity:     2 / 2     đáp án nằm trong gói
+   simple_time:     0 / 1     đáp án nằm trong gói
+          tổng:     2 / 4
+```
+
+Bộ mẫu cố ý chứa dòng hỏng, dòng ngược năm, dòng tự trỏ và khoảng chồng nhau, nên dòng `load:` đếm đủ từng loại. Hai câu không nêu năm trượt là đúng thiết kế — xem *Cách hệ thống trả lời một câu hỏi*.
+
+## Chạy trên dữ liệu thật
+
+Sau khi tải `data_v2` theo mục *Dữ liệu CRONQUESTIONS bản data_v2* bên dưới, đổi file câu hỏi pickle sang JSON Lines **một lần** — pickle chạy mã nằm trong file khi đọc, nên chỉ mở file chính thức:
+
+```bash
+uv run python -m agent_graph.cronquestions convert data/wikidata_big/questions/test.pickle test.jsonl
+uv run python -m agent_graph.run --kg data/wikidata_big/kg --questions test.jsonl --limit 1000 --out runs/test.jsonl
+```
+
+## Cấu trúc thư mục
+
+```
+src/brain/            lõi đồ thị chép từ hệ riêng tại mốc 28/09/2026, đã cắt gọn (xem PROVENANCE.md)
+src/agent_graph/      phần viết cho đồ án
+  schema.sql          lược đồ: tenants · entities · edges · acl
+  cronquestions.py    đọc data_v2, nạp đồ thị và mạng quyền
+  graph.py            lan một bước từ thực thể của câu hỏi, cắt quyền, dựng gói
+  backend.py          giao diện nơi chạy: lõi trong kho này, hoặc hệ riêng trên máy tác giả
+  run.py              chạy một tập câu, ghi kết quả
+tests/                test chạy trên Postgres nhúng; tests/data là bộ mẫu cùng định dạng data_v2
+PROVENANCE.md         nguồn gốc từng file chép từ hệ riêng
+```
+
+## Kiểm thử
+
+```bash
+uv run pytest -q
+```
+
+CI (`.github/workflows/ci.yml`) chạy `ruff`, `mypy` (strict) và `pytest` cho mỗi pull request và mỗi lần đẩy lên `main`.
+
+## Khung đánh giá (Evaluation Framework)
+
+### 1. Dữ liệu CRONQUESTIONS bản data_v2
 
 Theo yêu cầu đề tài, dự án **bắt buộc dùng bản `data_v2.zip`** (giấy phép MIT), tuyệt đối không dùng bản `data.zip` v1 vì tác giả gốc đã xác nhận bản v1 có **31.951 trên 410.000 câu bị lỗi dữ liệu**.
 
@@ -19,7 +92,7 @@ Theo yêu cầu đề tài, dự án **bắt buộc dùng bản `data_v2.zip`** 
 
 ---
 
-## 2. Khóa tập đánh giá 1.500 câu & Hạt giống (Seed)
+### 2. Khóa tập đánh giá 1.500 câu & Hạt giống (Seed)
 
 Để đảm bảo kết quả thực nghiệm là **khách quan, cố định và có thể tái lập 100%**, tập 1.500 câu hỏi được khóa chính thức với các thông số sau:
 
@@ -44,7 +117,7 @@ Theo yêu cầu đề tài, dự án **bắt buộc dùng bản `data_v2.zip`** 
 
 ---
 
-## 3. Bộ sinh mạng lưới quyền (Permission Generator)
+### 3. Bộ sinh mạng lưới quyền (Permission Generator)
 
 Do quyền thực tế của doanh nghiệp (ACL 26 nguồn SaaS) là dữ liệu bảo mật không thể công bố, đề tài sử dụng **mạng lưới quyền tổng hợp (synthetic)** được sinh có kiểm soát bằng thuật toán tất định (*deterministic*):
 
@@ -63,7 +136,7 @@ Do quyền thực tế của doanh nghiệp (ACL 26 nguồn SaaS) là dữ liệ
 
 ---
 
-## 4. Các lệnh chạy tái lập (Reproduce Steps)
+### 4. Các lệnh chạy tái lập (Reproduce Steps)
 
 Bất kỳ ai clone repository này về đều có thể chạy lại các lệnh sau để tái lập chính xác 100% dữ liệu:
 
@@ -88,7 +161,7 @@ python -m pytest tests/ -v
 
 ---
 
-## 5. Output Contract
+### 5. Output Contract
 
 ```json
 {
@@ -106,3 +179,41 @@ python -m pytest tests/ -v
 * `latency_ms`, `tokens`: Thời gian chạy và số token tiêu thụ.
 
 ---
+
+## Cách hệ thống trả lời một câu hỏi
+
+| Bước | Diễn ra thế nào |
+|---|---|
+| Thời gian | Sự kiện `[start, end]` tính theo năm thành `[1/1/start, 1/1/(end+1))` theo UTC — năm kết thúc được tính, như CronKGQA. Câu nêu năm được hỏi tại 1/1 của năm đó; câu không nêu năm được hỏi tại thời điểm hiện tại. |
+| Hạt giống | Thực thể của câu hỏi do CRONQUESTIONS cho sẵn (CronKGQA giả định nhận diện thực thể hoàn hảo). |
+| Lan | Một bước từ những hạt giống người hỏi được thấy, qua các cạnh đúng tại mốc đó. |
+| Cắt | Thực thể người hỏi không được thấy bị bỏ và được đếm; sau đó gói bị giới hạn 50 thực thể và 100 quan hệ. |
+
+Hỏi tại một mốc duy nhất là ngữ nghĩa **ảnh chụp** của hệ gốc. Nó không trả lời được câu không nêu năm — *khi nào*, *đầu tiên/cuối cùng*, *trước/sau* — và bộ chạy báo điều đó thành con số thay vì che đi.
+
+## Mạng quyền của bộ nạp
+
+Không có `--acl` thì mọi thực thể được cấp cho `anyone` — thế giới mở, dùng làm mốc so sánh. Có `--acl` thì chỉ những dòng được liệt kê tồn tại, và thực thể không dòng nào nhắc tới thì không ai thấy:
+
+```
+# item <TAB> principal [<TAB> năm bắt đầu <TAB> năm kết thúc]
+Q30	anyone
+Q76	alice@lab.test	2001	2004
+Q11696	domain:lab.test
+```
+
+Principal là một email, `group:<tên>`, `domain:<tên>` hoặc `anyone`; `--identity` chọn người hỏi.
+
+## Giới hạn hiện tại
+
+- Chưa có bộ chọn đáp án: bộ chạy báo **đáp án có nằm trong gói không** — trần trên của Hits@1 cho mọi cách trả lời chỉ đọc gói — chứ chưa ra Hits@1, và chưa xuất theo *Output Contract* bên trên.
+- Quyền đang gán theo **thực thể**; nhãn quyền theo **sự kiện** của *Bộ sinh mạng lưới quyền* chưa được nối vào bộ nạp.
+- Bộ nạp gộp các khoảng chồng nhau và bỏ dòng có năm bắt đầu sau năm kết thúc, nên chưa giữ `event_id` theo số dòng `full.txt` như mục *Dữ liệu CRONQUESTIONS bản data_v2* quy định.
+
+## Nguồn gốc mã nguồn
+
+`src/brain/` là một phần nhỏ của hệ riêng của tác giả (finch-brain), lấy tại mốc đóng băng 28/09/2026: chép nguyên văn từng byte rồi mới cắt gọn. [`PROVENANCE.md`](PROVENANCE.md) liệt kê từng file với git blob tại mốc và phần được giữ lại. Mọi thứ khác trong `src/agent_graph/` và `tests/` được viết cho đồ án này.
+
+## Giấy phép
+
+MIT — xem [`LICENSE`](LICENSE).

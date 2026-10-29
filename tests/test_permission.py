@@ -237,6 +237,6 @@ class TestKnownRoleMapping:
         p31_events = {0, 1, 2, 3, 4}
         role_events = set(assigned_role.allowed_event_ids)
 
-        # At least some overlap with P31 events
-        overlap = len(p31_events & role_events)
-        assert overlap > 0, f"Role should contain P31 events, got {role_events}"
+        # On this 10-event fixture, the medium role target is exactly five;
+        # P31 is the full semantic core, so the hand-computed set is exact.
+        assert role_events == p31_events, f"Expected exactly {p31_events}, got {role_events}"

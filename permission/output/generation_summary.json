@@ -1,0 +1,24 @@
+{
+  "seed": 42,
+  "n_questions": 1500,
+  "tightness_levels": {
+    "loose": {
+      "n_roles": 5,
+      "avg_events_per_role": 262908,
+      "total_events_in_kg": 328635,
+      "coverage_pct": 80.0
+    },
+    "medium": {
+      "n_roles": 12,
+      "avg_events_per_role": 164317,
+      "total_events_in_kg": 328635,
+      "coverage_pct": 50.0
+    },
+    "strict": {
+      "n_roles": 25,
+      "avg_events_per_role": 75405,
+      "total_events_in_kg": 328635,
+      "coverage_pct": 22.9
+    }
+  }
+}

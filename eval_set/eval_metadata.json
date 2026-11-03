@@ -1,0 +1,13 @@
+{
+  "seed": 42,
+  "n": 1500,
+  "pool_records": 30000,
+  "pool_unique_ids": 18050,
+  "source": "data/wikidata_big/questions/test.pickle",
+  "dedup_rule": "group by uniq_id; first record is canonical; other records merged into paraphrases",
+  "data_version": "data_v2",
+  "known_issues": [
+    "652 KG events have start_year > end_year (treated as empty intervals downstream; see data/AUDIT_REPORT.md)",
+    "KG valid split is a subset of train (overlap 5000/5000); only full.txt + test.pickle are used, so no impact"
+  ]
+}

@@ -8,10 +8,19 @@ Event = Tuple[int, str, str, str, int, int]
 
 
 def event_is_valid(start: int, end: int, year: int) -> bool:
-    """CRONQUESTIONS uses left-closed [start, end) intervals; end=0 is open."""
-    if start > end and end != 0:
-        return False
-    return start <= year and (end == 0 or year < end)
+    """A fact [start, end] holds in `year` iff start <= year <= end.
+
+    This is the left-closed convention written in the README: a fact maps to
+    [1/1/start, 1/1/(end+1)) UTC and a year is asked at 1/1/year, so the end
+    year counts (CronKGQA's own `discretizeKG` walks `range(start, end + 1)`,
+    and this rule reproduces CRONQUESTIONS' gold answers on all 360
+    simple_entity questions of the frozen set). A point fact (start == end,
+    48% of data_v2) holds during that one year. start > end is empty: the 652
+    reversed rows, including the single row whose end year is 0.
+    The graph query (`agent_graph.cronquestions`) applies the same predicate;
+    tests/test_asof.py checks that the two agree year by year.
+    """
+    return start <= year <= end
 
 
 class KGEventIndex:
@@ -92,17 +101,16 @@ class KGEventIndex:
         return [self.events[event_id] for event_id in selected]
 
     def latest_answers(self, head: str, relation: str) -> Set[str]:
+        # Reversed intervals (start > end) are empty, as in `event_is_valid`.
         candidates = [event for eid in self.by_head_relation.get((head, relation), ())
-                      if (event := self.events[eid])[4] <= event[5] or event[5] == 0]
+                      if (event := self.events[eid])[4] <= event[5]]
         if not candidates:
             return set()
         # For the "latest" comparison use the fact(s) with the newest
-        # observed start year. Point events (start == end) remain valid event
-        # records for latest-answer ranking even though their half-open
-        # interval has no duration.
+        # observed start year. Point facts (start == end) hold for one year
+        # and rank like any other fact.
         latest_year = max(event[4] for event in candidates)
-        return {tail for _, _, _, tail, start, end in candidates
-                if start == latest_year and (start <= end or end == 0)}
+        return {tail for _, _, _, tail, start, _ in candidates if start == latest_year}
 
     def evidence_for_mentions(self, mentions: Set[str], anchors: Set[str],
                               relations: Set[str]) -> Set[int]:

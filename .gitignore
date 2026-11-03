@@ -222,3 +222,6 @@ __marimo__/
 # Dữ liệu của đề (tải riêng, không phân phối lại) và kết quả chạy
 /data/
 /runs/
+# Định nghĩa vai trò của bộ sinh quyền: 84 MB, sinh lại được từ data_v2 + seed 42, hash ghim
+# trong eval_set/frozen_manifest.json (kiểm bằng scripts/freeze_dataset.py)
+/permission/output/roles_*.json

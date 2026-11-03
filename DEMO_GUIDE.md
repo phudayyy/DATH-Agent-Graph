@@ -115,18 +115,17 @@ REPRODUCE CHECK: PASS
 python -m pytest tests/ -v
 ```
 
-Kết quả hiển thị số kiểm thử hiện có và từng trạng thái pass/fail; số lượng có thể đổi khi test được cập nhật. Phần leakage kiểm tra QID/entity được nối về KG event, còn phần as-of truy vấn index ở các mốc và biên trái.
+Kết quả hiển thị số kiểm thử hiện có và từng trạng thái pass/fail; số lượng có thể đổi khi test được cập nhật. Ba kiểm thử bắt buộc của phiếu được liệt kê trong README, mục *Ba kiểm thử bắt buộc*. Phần leakage chấm năm câu trả lời giả qua `MetricsAggregator`, kể cả một câu chỉ rò ở suy luận. Phần as-of hỏi truy vấn đồ thị thật (Postgres) và khung đo ở ba mốc và tại đúng biên, và canh hai bên khớp nhau từng năm. `tests/test_frozen_dataset.py` canh tập dữ liệu đã đóng băng.
 
 Các test liên quan đến seed & role:
 | Test | Chứng minh |
 |------|-----------|
-| `test_deterministic_same_seed` | Cùng seed → cùng role + permission |
-| `test_different_seed_different_output` | Khác seed → output khác |
-| `test_select_1500_deterministic` | Cùng seed → cùng 1.500 ID |
-| `test_three_tightness_levels` | 3 mức loose/medium/strict có coverage khác nhau |
-| `test_role_assignment_coverage` | Mọi câu đều được gán role hợp lệ |
-| `test_known_role_events_match_manual` | Role giả → khớp tính tay |
-| `test_public_role_exists` | Role public (baseline) luôn tồn tại |
+| `test_the_same_seed_regenerates_the_same_labels_byte_for_byte` | Cùng seed → cùng nhãn, từng byte, ở hai tiến trình có `PYTHONHASHSEED` khác nhau; trùng dấu vân tay lúc đóng băng |
+| `test_a_known_role_sees_exactly_the_hand_computed_events` | Role giả → tập sự kiện nhìn thấy được qua `EvaluationRunner` khớp tính tay `{0, 2, 4, 6}` |
+| `test_a_different_seed_gives_a_different_network` | Khác seed → mạng lưới khác |
+| `test_selecting_the_eval_set_with_the_same_seed_returns_the_same_ids` | Cùng seed → cùng 1.500 ID |
+| `test_tighter_levels_have_more_and_narrower_roles` | Càng chặt càng nhiều role, mỗi role càng hẹp |
+| `test_every_question_gets_a_role_with_events_and_public_sees_all` | Mọi câu được gán role hợp lệ; role public (baseline) thấy toàn bộ |
 
 ---
 

@@ -1,0 +1,81 @@
+{
+  "frozen_on": "2026-11-04",
+  "seed": 42,
+  "n_questions": 1500,
+  "derivation": [
+    "python scripts/select_eval_set.py --seed 42 --n 1500",
+    "python scripts/generate_permissions.py --seed 42"
+  ],
+  "verify": "python scripts/freeze_dataset.py --data data/wikidata_big",
+  "upstream": {
+    "dataset": "CRONQUESTIONS data_v2 (Saxena, Chakrabarti, Talukdar, ACL-IJCNLP 2021; CronKGQA, MIT)",
+    "download": "gdown https://drive.google.com/uc?id=1fe7-x7ChszqzczKncoZcpwmWc1PBq1_0",
+    "unpack": "unzip -q data_v2.zip  # tạo data/wikidata_big/ ngay tại gốc kho",
+    "archive": {
+      "bytes": 83537446,
+      "sha256": "0a2f77148977afb02a159b23cc942925b9455c98fcbe61ef164706324fd4734e"
+    },
+    "files": {
+      "kg/full.txt": {
+        "bytes": 10321920,
+        "sha256": "491a8b2ded719a65b74c54a2d2f5b9af12eaf29e924eeb33cf44ae5906b0eb60"
+      },
+      "questions/test.pickle": {
+        "bytes": 7864820,
+        "sha256": "9fed4b912e450305b34538e709c695704d0b830a74fd4e044a9d263757d10000"
+      },
+      "kg/wd_id2entity_text.txt": {
+        "bytes": 3313711,
+        "sha256": "e7c269c184f5b4303716d760193e41ffbd0491902a852d13f0826e7739f2fbe5"
+      },
+      "kg/wd_id2relation_text.txt": {
+        "bytes": 4198,
+        "sha256": "b8f692d22b0d089d259287d058c3a8521a3a096d68f3082b85bc11209bc87c8a"
+      }
+    }
+  },
+  "committed": {
+    "eval_set/selected_question_ids.json": {
+      "bytes": 16027,
+      "sha256": "ff997e882d38046a7ac2380c40095a76d06f1bb343f6fe5e8cdf223881d88a22"
+    },
+    "eval_set/eval_set.json": {
+      "bytes": 1367632,
+      "sha256": "375dfd5792d1b223f46eb79ee0e7b19103a7ca85583bd1e05777c384ce6be349"
+    },
+    "eval_set/eval_metadata.json": {
+      "bytes": 521,
+      "sha256": "d9908f091576805a7e81002421e43f85750187af1867e1ad95c934131afeb1a1"
+    },
+    "permission/output/permissions_loose.jsonl": {
+      "bytes": 111897,
+      "sha256": "800ba1d757e3b838e0f04d7c5b34f77dbeef0d79ad16af909264d05cd3b4a142"
+    },
+    "permission/output/permissions_medium.jsonl": {
+      "bytes": 113914,
+      "sha256": "8b773f4310319713703429b008036cab9c962bc22438f2aac5c325bdd88304ae"
+    },
+    "permission/output/permissions_strict.jsonl": {
+      "bytes": 114188,
+      "sha256": "824a6b3796b1d5cc70c953356bdefae777bfe21ccd54a9843c9ecc0d759d3593"
+    },
+    "permission/output/generation_summary.json": {
+      "bytes": 496,
+      "sha256": "cc16d83063a9e2fc8c8b85a405e6de1d45156a6747e3273b891b1d1f06267eb1"
+    }
+  },
+  "regenerated": {
+    "permission/output/roles_loose.json": {
+      "bytes": 22460980,
+      "sha256": "43aaa226d967291ae67e34920af044e04613d0d12ebd62097d802cdce1dac433"
+    },
+    "permission/output/roles_medium.json": {
+      "bytes": 31465619,
+      "sha256": "04d382e5753dc1300d0dd2323c56ce153b7a7db61eac541fa6737732e393c6b8"
+    },
+    "permission/output/roles_strict.json": {
+      "bytes": 30343924,
+      "sha256": "7569019ebe252d4c2106e4b9b29edbc2918e4d9959ce1d3c5e0b4ef12c9ff518"
+    }
+  }
+}

@@ -3,13 +3,11 @@ Test 1: Permission Generator determinism and correctness.
 Required by spec - 15 points in A3 criteria.
 """
 
-import json
+import sys
 import tempfile
 from pathlib import Path
 
 import pytest
-
-import sys
 
 from permission.generator import PermissionGenerator
 
@@ -97,7 +95,7 @@ class TestPermissionGenerator:
 
         # Check question permissions identical
         assert len(perms1) == len(perms2)
-        for p1, p2 in zip(perms1, perms2):
+        for p1, p2 in zip(perms1, perms2, strict=True):
             assert p1.question_id == p2.question_id
             assert p1.role_id == p2.role_id
             assert p1.allowed_event_ids == p2.allowed_event_ids
@@ -113,7 +111,7 @@ class TestPermissionGenerator:
 
         # At least one question should have different role assignment
         different = False
-        for p1, p2 in zip(perms1, perms2):
+        for p1, p2 in zip(perms1, perms2, strict=True):
             if p1.role_id != p2.role_id or p1.allowed_event_ids != p2.allowed_event_ids:
                 different = True
                 break
@@ -126,7 +124,7 @@ class TestPermissionGenerator:
 
         results = {}
         for tightness in ['loose', 'medium', 'strict']:
-            roles, perms = generator.generate_for_tightness(tightness, sample_kg, sample_questions, question_ids)
+            roles, _perms = generator.generate_for_tightness(tightness, sample_kg, sample_questions, question_ids)
             n_roles = len([r for r in roles if r != 'public'])
             avg_events = sum(len(r.allowed_event_ids) for r in roles.values() if r != 'public') / n_roles
             results[tightness] = {'n_roles': n_roles, 'avg_events': avg_events}

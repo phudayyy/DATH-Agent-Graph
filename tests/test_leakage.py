@@ -4,8 +4,11 @@ import pytest
 
 from evaluation.kg_index import KGEventIndex
 from evaluation.leakage import (
-    LeakageLocation, LeakageResult, check_leakage,
-    compute_leakage_rate, compute_leakage_rate_separate,
+    LeakageLocation,
+    LeakageResult,
+    check_leakage,
+    compute_leakage_rate,
+    compute_leakage_rate_separate,
 )
 
 

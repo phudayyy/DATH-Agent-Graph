@@ -4,11 +4,12 @@ Required by spec - 15 points in A3 criteria.
 Tests fake entity with 3 valid-time intervals, checks 3 time points + boundaries.
 """
 
-import pytest
 from evaluation.kg_index import KGEventIndex
 from evaluation.temporal_error import (
-    check_temporal_error, compute_temporal_error_rate,
-    left_closed_boundary_check, TemporalErrorResult
+    TemporalErrorResult,
+    check_temporal_error,
+    compute_temporal_error_rate,
+    left_closed_boundary_check,
 )
 
 
@@ -19,25 +20,25 @@ class TestAsOfTemporal:
         """Test left-closed interval: [start, end)"""
         # Event valid from 2000 to 2010
         # At 2000: valid (start <= year < end)
-        assert left_closed_boundary_check(2000, 2010, 2000) == True
+        assert left_closed_boundary_check(2000, 2010, 2000)
         # At 2005: valid
-        assert left_closed_boundary_check(2000, 2010, 2005) == True
+        assert left_closed_boundary_check(2000, 2010, 2005)
         # At 2009: valid
-        assert left_closed_boundary_check(2000, 2010, 2009) == True
+        assert left_closed_boundary_check(2000, 2010, 2009)
         # At 2010: NOT valid (end is exclusive)
-        assert left_closed_boundary_check(2000, 2010, 2010) == False
+        assert not left_closed_boundary_check(2000, 2010, 2010)
         # At 2011: NOT valid
-        assert left_closed_boundary_check(2000, 2010, 2011) == False
+        assert not left_closed_boundary_check(2000, 2010, 2011)
         # Before start: NOT valid
-        assert left_closed_boundary_check(2000, 2010, 1999) == False
+        assert not left_closed_boundary_check(2000, 2010, 1999)
 
     def test_left_closed_boundary_no_end(self):
         """Event with no end year (ongoing) - end treated as infinity."""
         # Event from 2000 onwards
-        assert left_closed_boundary_check(2000, None, 1999) == False
-        assert left_closed_boundary_check(2000, None, 2000) == True
-        assert left_closed_boundary_check(2000, None, 2020) == True
-        assert left_closed_boundary_check(2000, 0, 2000) == True  # 0 as no-end
+        assert not left_closed_boundary_check(2000, None, 1999)
+        assert left_closed_boundary_check(2000, None, 2000)
+        assert left_closed_boundary_check(2000, None, 2020)
+        assert left_closed_boundary_check(2000, 0, 2000)  # 0 as no-end
 
     def test_three_intervals_entity(self):
         """
@@ -79,7 +80,7 @@ class TestAsOfTemporal:
             gold_latest={"Q123", "Q789"},
             as_of_year=2005
         )
-        assert result.has_temporal_error == False
+        assert not result.has_temporal_error
         assert result.error_type == 'correct'
 
     def test_temporal_error_correct_latest_wrong_asof(self):
@@ -96,7 +97,7 @@ class TestAsOfTemporal:
             gold_latest={"Q789"},  # Latest answer
             as_of_year=2005
         )
-        assert result.has_temporal_error == True
+        assert result.has_temporal_error
         assert result.error_type == 'temporal_error'
 
     def test_other_error_wrong_at_both(self):
@@ -107,7 +108,7 @@ class TestAsOfTemporal:
             gold_latest={"Q789"},
             as_of_year=2005
         )
-        assert result.has_temporal_error == False
+        assert not result.has_temporal_error
         assert result.error_type == 'other_error'
 
     def test_compute_temporal_error_rate(self):
@@ -138,7 +139,7 @@ class TestAsOfTemporal:
             gold_latest={"Q789"},
             as_of_year=2005
         )
-        assert result.has_temporal_error == True
+        assert result.has_temporal_error
         assert result.error_type == 'temporal_error'
 
 
@@ -158,7 +159,7 @@ class TestAsOfBoundaryConvention:
         # Query as-of 2000: should see the position (start_year <= 2000 < end_year) -> True
         # Query as-of 2010: should NOT see the position (2010 < 2010 is False) -> False
 
-        assert left_closed_boundary_check(2000, 2010, 2000) == True   # At start
-        assert left_closed_boundary_check(2000, 2010, 2010) == False  # At end
+        assert left_closed_boundary_check(2000, 2010, 2000)  # At start
+        assert not left_closed_boundary_check(2000, 2010, 2010)  # At end
 
         # This matches SQL:2011 valid time semantics (per SIGMOD Record reference in spec)

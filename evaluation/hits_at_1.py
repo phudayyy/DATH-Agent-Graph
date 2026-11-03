@@ -1,9 +1,11 @@
-"""
-Hits@1 metric for CronKGQA evaluation.
-Follows the exact scoring from CronKGQA paper.
+"""Rank-1 answer scoring aligned with CronKGQA's top-k membership metric.
+
+CronKGQA evaluates an ordered candidate list. This project stores one answer
+string, so a string naming multiple distinct QIDs has no recoverable rank-1
+candidate and is scored as ambiguous rather than searching for any gold QID.
 """
 
-from typing import Set, List, Optional
+from typing import Set, List
 from dataclasses import dataclass
 
 
@@ -14,7 +16,7 @@ class HitsAt1Result:
     hits_at_1: float  # 1.0 if correct, 0.0 otherwise
     predicted_answer: str
     gold_answers: Set[str]
-    match_type: str  # 'exact', 'normalized', 'none'
+    match_type: str  # 'exact', 'single_qid', 'ambiguous', 'none'
 
 
 def normalize_answer(answer: str) -> str:
@@ -34,10 +36,10 @@ def normalize_answer(answer: str) -> str:
 
 def compute_hits_at_1(predicted: str, gold_answers: Set[str]) -> HitsAt1Result:
     """
-    Compute Hits@1 for a single prediction.
+    Score one rank-1 prediction against a possibly multi-answer gold set.
 
     Args:
-        predicted: Model's predicted answer (string)
+        predicted: Model's single answer, optionally prose containing one QID
         gold_answers: Set of gold answer strings
 
     Returns:
@@ -56,18 +58,30 @@ def compute_hits_at_1(predicted: str, gold_answers: Set[str]) -> HitsAt1Result:
             match_type='exact'
         )
 
-    # Try to extract Q-id from predicted text (e.g., "The answer is Q123")
+    # A prose answer may contain one unambiguous entity ID (e.g. "Answer: Q123").
+    # Do not scan for any matching gold ID: that can award Hits@1 when the model
+    # lists several candidates and only a lower-ranked one happens to be gold.
     import re
-    qid_matches = re.findall(r'\b(Q\d+)\b', predicted or "", re.IGNORECASE)
-    for qid in qid_matches:
-        if normalize_answer(qid) in gold_norm:
+    qid_matches = re.findall(r'\b(Q\d+)\b', str(predicted or ""), re.IGNORECASE)
+    unique_qids = {normalize_answer(qid) for qid in qid_matches}
+    if len(unique_qids) == 1:
+        only_qid = next(iter(unique_qids))
+        if only_qid in gold_norm:
             return HitsAt1Result(
                 question_id=-1,
                 hits_at_1=1.0,
                 predicted_answer=predicted,
                 gold_answers=gold_answers,
-                match_type='extracted_qid'
+                match_type='single_qid'
             )
+    elif len(unique_qids) > 1:
+        return HitsAt1Result(
+            question_id=-1,
+            hits_at_1=0.0,
+            predicted_answer=predicted,
+            gold_answers=gold_answers,
+            match_type='ambiguous'
+        )
 
     return HitsAt1Result(
         question_id=-1,

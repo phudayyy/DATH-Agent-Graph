@@ -11,6 +11,11 @@ build/
 # === Data files (too large for git; download data_v2.zip separately) ===
 data/wikidata_big/kg/
 data/wikidata_big/questions/
+data/audit_report.json
+data/AUDIT_REPORT.md
+
+# === Experiment outputs ===
+results/
 
 # === Model checkpoints (download from CronKGQA repo) ===
 models/

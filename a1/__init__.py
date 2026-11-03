@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Optional
 
-from a0.generative_qa import DEFAULT_MODEL, DEFAULT_RETRIEVAL_BUDGET, GenerativeKGQA
+from a0.generative_qa import DEFAULT_MODEL, DEFAULT_MODEL_REVISION, DEFAULT_RETRIEVAL_BUDGET, GenerativeKGQA
 from evaluation.kg_index import KGEventIndex
 from evaluation.metrics import EvaluationOutput
 from evaluation.runner import post_generation_filter
@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def get_a1_branch(*, engine: Optional[GenerativeKGQA] = None,
                   model_id: str = DEFAULT_MODEL,
-                  revision: str = "main",
+                  revision: str = DEFAULT_MODEL_REVISION,
                   retrieval_budget: int = DEFAULT_RETRIEVAL_BUDGET,
                   kg_path: Path = ROOT / "data" / "wikidata_big" / "kg" / "full.txt",
                   threads: int = 4):

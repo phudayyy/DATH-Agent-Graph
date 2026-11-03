@@ -11,8 +11,8 @@ from pathlib import Path
 
 from .hits_at_1 import HitsAt1Result, compute_hits_at_1, compute_hits_at_1_batch
 from .leakage import (LeakageLocation, LeakageResult, check_leakage,
-                      compute_leakage_rate, compute_leakage_rate_separate)
-from .temporal_error import TemporalErrorResult, check_temporal_error, compute_temporal_error_rate, left_closed_boundary_check
+                      compute_leakage_rate)
+from .temporal_error import TemporalErrorResult, check_temporal_error, compute_temporal_error_rate
 
 
 @dataclass
@@ -84,7 +84,9 @@ class MetricsAggregator:
 
         self.hits_results: List[HitsAt1Result] = []
         self.leakage_results: List[LeakageResult] = []
-        self.temporal_results: List[TemporalErrorResult] = []
+        # Keep one slot per question so detailed output stays aligned even
+        # when a query form has no defensible temporal gold labels.
+        self.temporal_results: List[Optional[TemporalErrorResult]] = []
         self.latencies: List[int] = []
         self.tokens: List[int] = []
         self.answers: List[str] = []
@@ -129,7 +131,9 @@ class MetricsAggregator:
         self.leakage_results.append(leakage_result)
 
         # Temporal error
-        if (self.asof_enabled and output.as_of_year and
+        # Measure stale-answer behavior for every branch on as-of questions,
+        # including A0/A1 where temporal filtering is intentionally OFF.
+        if (output.as_of_year and
                 output.gold_answers_at_asof is not None and
                 output.gold_answers_latest is not None):
             gold_asof = set(output.gold_answers_at_asof) if output.gold_answers_at_asof else set()
@@ -139,6 +143,8 @@ class MetricsAggregator:
             )
             temporal_result.question_id = qid
             self.temporal_results.append(temporal_result)
+        else:
+            self.temporal_results.append(None)
 
     def compute(self) -> AggregatedMetrics:
         """Compute all aggregated metrics."""
@@ -150,7 +156,9 @@ class MetricsAggregator:
         leakage = compute_leakage_rate(scored_leakage)
 
         # Temporal error
-        temporal = compute_temporal_error_rate(self.temporal_results)
+        temporal = compute_temporal_error_rate(
+            [result for result in self.temporal_results if result is not None]
+        )
 
         # Latency & tokens
         n = len(self.latencies)
@@ -196,7 +204,7 @@ class MetricsAggregator:
             json.dump(self.to_dict(), f, ensure_ascii=False, indent=2)
 
 
-def compute_delta_metrics(results: Dict[str, AggregatedMetrics]) -> Dict[str, float]:
+def compute_delta_metrics(results: Dict[str, AggregatedMetrics]) -> Dict[str, Any]:
     """
     Compute ΔP, ΔT, ΔPT from the 2x2 experiment results.
 
@@ -206,7 +214,8 @@ def compute_delta_metrics(results: Dict[str, AggregatedMetrics]) -> Dict[str, fl
     - 'asof_only': permission=OFF, asof=ON
     - 'A2': permission=ON, asof=ON (averaged over 3 tightness)
 
-    Returns dict with delta_P, delta_T, delta_PT, and additivity_check (ΔPT ≈ ΔP + ΔT).
+    Returns point estimates only. Use scripts/summarize_experiment.py for the
+    paired question-level bootstrap CIs required to assess additivity.
     """
     a0 = results.get('A0')
     perm_only = results.get('permission_only')
@@ -226,7 +235,7 @@ def compute_delta_metrics(results: Dict[str, AggregatedMetrics]) -> Dict[str, fl
     delta_T = baseline_acc - asof_acc
     delta_PT = baseline_acc - both_acc
 
-    # Additivity check
+    # This point estimate is descriptive, not a hypothesis test.
     additivity_diff = delta_PT - (delta_P + delta_T)
 
     return {
@@ -235,7 +244,7 @@ def compute_delta_metrics(results: Dict[str, AggregatedMetrics]) -> Dict[str, fl
         'delta_PT': round(delta_PT, 4),
         'delta_P_plus_delta_T': round(delta_P + delta_T, 4),
         'additivity_difference': round(additivity_diff, 4),
-        'additivity_holds': abs(additivity_diff) < 0.02,  # 2% tolerance
+        'additivity_interpretation': 'point estimate only; use paired bootstrap CI to assess the hypothesis',
         'baseline_accuracy': round(baseline_acc, 4),
         'permission_only_accuracy': round(perm_acc, 4),
         'asof_only_accuracy': round(asof_acc, 4),

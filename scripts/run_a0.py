@@ -10,7 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from a0.generative_qa import DEFAULT_MODEL, DEFAULT_RETRIEVAL_BUDGET, GenerativeKGQA  # noqa: E402
+from a0.generative_qa import (DEFAULT_MODEL, DEFAULT_MODEL_REVISION,
+                              DEFAULT_RETRIEVAL_BUDGET, GenerativeKGQA)  # noqa: E402
 from evaluation.hits_at_1 import compute_hits_at_1  # noqa: E402
 from evaluation.kg_index import KGEventIndex  # noqa: E402
 
@@ -21,7 +22,8 @@ def main() -> int:
     parser.add_argument("--kg", type=Path, default=ROOT / "data" / "wikidata_big" / "kg" / "full.txt")
     parser.add_argument("--model", default=DEFAULT_MODEL,
                         help="HF model id or local model directory; same default must be used by A1/A2")
-    parser.add_argument("--revision", default="main", help="HF commit/tag; resolved commit is recorded in metadata")
+    parser.add_argument("--revision", default=DEFAULT_MODEL_REVISION,
+                        help="HF model commit; resolved commit is recorded in metadata")
     parser.add_argument("--out-dir", type=Path, default=ROOT / "results" / "a0")
     parser.add_argument("--retrieval-budget", type=int, default=DEFAULT_RETRIEVAL_BUDGET)
     parser.add_argument("--max-new-tokens", type=int, default=128)
@@ -48,6 +50,7 @@ def main() -> int:
     total = correct = total_tokens = 0
     latency_sum = 0.0
     by_type = defaultdict(lambda: {"correct": 0, "total": 0})
+    hit_match_types = defaultdict(int)
     print(f"\r[{'-' * 30}] 0/{len(questions)} (0.0%) waiting for first answer...",
           end="", flush=True)
     run_started = time.perf_counter()
@@ -57,7 +60,9 @@ def main() -> int:
             prediction = engine.predict(question, args.retrieval_budget)
             latency_ms = (time.perf_counter() - started) * 1000
             gold = set(map(str, question.get("answers", [])))
-            hit = compute_hits_at_1(prediction["answer"], gold).hits_at_1 == 1.0
+            hit_result = compute_hits_at_1(prediction["answer"], gold)
+            hit = hit_result.hits_at_1 == 1.0
+            hit_match_types[hit_result.match_type] += 1
             total += 1
             correct += int(hit)
             total_tokens += prediction["tokens"]
@@ -93,6 +98,7 @@ def main() -> int:
         "reasoning_available": True,
         "n_questions": total, "hits_at_1_correct": correct,
         "hits_at_1": correct / total if total else 0.0,
+        "hits_match_types": dict(sorted(hit_match_types.items())),
         "avg_latency_ms": latency_sum / total if total else 0.0,
         "avg_tokens": total_tokens / total if total else 0.0,
         "by_question_type": {
@@ -108,6 +114,7 @@ def main() -> int:
     (args.out_dir / "run_metadata.json").write_text(json.dumps({
         "model": args.model, "model_revision": engine.resolved_revision,
         "requested_revision": args.revision, "device": "cpu",
+        "threads": args.threads, "retrieval_budget_events": args.retrieval_budget,
         "max_new_tokens": args.max_new_tokens, "permission_filter": False, "asof_filter": False,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"A0 Hits@1: {metrics['hits_at_1']:.4f} ({correct}/{total})")

@@ -9,7 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from a0.generative_qa import DEFAULT_MODEL, DEFAULT_RETRIEVAL_BUDGET, GenerativeKGQA  # noqa: E402
+from a0.generative_qa import (DEFAULT_MODEL, DEFAULT_MODEL_REVISION,
+                              DEFAULT_RETRIEVAL_BUDGET, GenerativeKGQA)  # noqa: E402
 from evaluation.kg_index import KGEventIndex  # noqa: E402
 from evaluation.runner import post_generation_filter  # noqa: E402
 
@@ -42,7 +43,8 @@ def main():
     parser.add_argument("--kg", type=Path, default=ROOT / "data" / "wikidata_big" / "kg" / "full.txt")
     parser.add_argument("--model", default=DEFAULT_MODEL,
                         help="Must match the A0 model and Phu's A2 model")
-    parser.add_argument("--revision", default="main", help="HF commit/tag; resolved commit is recorded in metadata")
+    parser.add_argument("--revision", default=DEFAULT_MODEL_REVISION,
+                        help="HF model commit; resolved commit is recorded in metadata")
     parser.add_argument("--retrieval-budget", type=int, default=DEFAULT_RETRIEVAL_BUDGET)
     parser.add_argument("--max-new-tokens", type=int, default=128)
     parser.add_argument("--out-dir", type=Path, default=ROOT / "results" / "a1")
@@ -106,7 +108,8 @@ def main():
     (args.out_dir / f"run_metadata_A1_{args.tightness}.json").write_text(json.dumps({
         "model": args.model, "model_revision": engine.resolved_revision,
         "requested_revision": args.revision, "device": "cpu", "retrieval_budget_events": args.retrieval_budget,
-        "max_new_tokens": args.max_new_tokens, "permission_filter": True, "asof_filter": False,
+        "max_new_tokens": args.max_new_tokens, "threads": args.threads,
+        "permission_filter": True, "asof_filter": False,
         "tightness": args.tightness,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 

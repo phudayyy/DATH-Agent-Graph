@@ -111,9 +111,20 @@ python -m pytest tests/ -v
 * `reasoning`: Suy luận trung gian (bắt buộc phải có vì độ rò rỉ thông tin được đo riêng ở cả reasoning và final answer).
 * `latency_ms`, `tokens`: Thời gian chạy và số token tiêu thụ.
 
+## 5.1. Phân biệt baseline với phép đo temporal
+
+| Nhánh/ô | Permission filter | As-of filter | Vai trò |
+|---|---|---|---|
+| A0 | OFF | OFF | Baseline không chặn cả hai điều kiện. |
+| A1 | ON sau khi sinh | OFF | Sinh câu trả lời trước, rồi từ chối câu trả lời cuối nếu không xác minh được permission. Giữ reasoning nguyên bản để evaluator đo rò rỉ ở reasoning. |
+| As-of-only ablation | OFF | ON | Ô OFF/ON của ma trận 2×2; không phải A1. Dùng hiện thực A2-public ở chế độ chỉ bật as-of. |
+| A2 | ON trong truy vấn | ON trong truy vấn | Cả hai predicate được áp dụng ngay khi truy vấn; Phú phụ trách A2-public và A2-private/MCP. |
+
+Evaluator vẫn **đo temporal error** trên các câu có as-of đủ điều kiện ở A0 và A1. Việc đo nhãn as-of không bật bộ lọc as-of trong nhánh; chỉ cờ cấu hình của nhánh mới quyết định filtering.
+
 ## 6. Mô hình sinh chung và A0 (CPU)
 
-Đề bài yêu cầu các baseline dùng chung một mô hình sinh và cùng ngân sách truy hồi. A0/A1 hiện dùng **`Qwen/Qwen2.5-1.5B-Instruct`** local, CPU, cùng prompt và cùng giới hạn 64 facts truy hồi; model card ghi giấy phép Apache 2.0. Qwen weights được tải/cached tự động ở lần chạy đầu, không commit vào Git. Đây là lựa chọn model thí nghiệm của nhóm, không phải một model API.
+Đề bài không ấn định tên model sinh; yêu cầu là các baseline dùng chung một model và ngân sách truy hồi, đồng thời phạm vi tối thiểu chạy được trên CPU. Cấu hình mặc định phần Huy (A0/A1) là **`Qwen/Qwen2.5-0.5B-Instruct`** local, CPU, cùng prompt và giới hạn 64 facts truy hồi. Code ghim revision `7ae557604adf67be50417f59c2c2f167def9a775` để tái lập. Model card ghi giấy phép Apache 2.0. Qwen weights được tải/cache tự động ở lần chạy đầu, không commit vào Git. Đây là lựa chọn thực nghiệm của nhóm, không phải model của CronKGQA hay model API. Phú cần xác nhận và dùng đúng model ID, revision, retrieval budget và token budget này cho A2-public nếu muốn so sánh trực tiếp.
 
 Trong Python environment của dự án cần có PyTorch CPU, `transformers` và `accelerate`. Lệnh cài dưới đây cài các package cần để nạp model, không tải weights model:
 
@@ -127,20 +138,23 @@ Chạy A0 trên tập khóa. Lệnh chạy CPU với 4 thread, không bật lọ
 python scripts/run_a0.py --threads 4 --retrieval-budget 64 --max-new-tokens 128
 ```
 
-Lệnh tạo `results/a0/outputs_A0.jsonl`, `metrics_A0.json` và `run_metadata.json`; sidecar ghi revision commit đã resolve từ Hugging Face. Có thể truyền `--revision <commit>` để khóa một revision thay vì `main`. Hits@1 vẫn theo cách chấm CronKGQA: một đáp án hạng nhất đúng nếu khớp một trong các gold answers; điều này dùng chung metric, không khẳng định model Qwen là CRONKGQA. Mô hình sinh có rationale ngắn kèm event citations để evaluator chấm leakage riêng ở final và reasoning.
+Lệnh tạo `results/a0/outputs_A0.jsonl`, `metrics_A0.json` và `run_metadata.json`; sidecar ghi model revision. Mặc định đã ghim revision, và có thể truyền cùng `model_revision` qua `--revision` khi chạy A1. Dùng đúng model ID, revision, retrieval budget và token budget cho các nhánh có sinh mô hình. Hits@1 chấm đáp án hạng nhất nếu khớp một trong các gold answers; câu trả lời chứa nhiều Q-ID khác nhau bị coi là mơ hồ và không được tính điểm, tránh nhận điểm chỉ vì liệt kê một đáp án đúng ở vị trí bất kỳ. Điều này dùng chung metric, không khẳng định model Qwen là CRONKGQA. Mô hình sinh có rationale ngắn kèm event citations để evaluator chấm leakage riêng ở final và reasoning.
 
-Phú cần dùng đúng model ID `Qwen/Qwen2.5-1.5B-Instruct`, `retrieval_budget_events=64`, `max_new_tokens=128` và ghi metadata sidecar cho A2-public/A2-private nếu muốn kết quả so sánh đúng điều kiện đề. A2 vẫn do Phú hiện thực.
+Kết quả A0 đã lưu trong `results/a0/run_metadata.json` cũng ghi `Qwen/Qwen2.5-0.5B-Instruct`; vì vậy model mặc định của code hiện đã thống nhất với kết quả này. Trước khi so sánh với A1/A2, đối chiếu `model_revision`, `retrieval_budget_events` và `max_new_tokens` trong sidecar của từng nhánh. Không ghép kết quả nếu các cấu hình này khác nhau.
 
-Tham khảo: [Qwen2.5-1.5B-Instruct model card](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct); [CronKGQA paper](https://aclanthology.org/2021.acl-long.520/) để đối chiếu quy ước Hits@1.
+Đề không buộc Huy hiện thực A2. Để kết quả so sánh hợp lệ, thống nhất với Phú model ID `Qwen/Qwen2.5-0.5B-Instruct`, cùng `model_revision`, `retrieval_budget_events=64` và `max_new_tokens=128`, đồng thời yêu cầu sidecar metadata cho A2-public/A2-private. Nếu Phú chọn model/cấu hình khác, phải ghi rõ và không diễn giải chênh lệch như chỉ do filter.
+
+Tham khảo: [Qwen2.5-0.5B-Instruct model card](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct); [CronKGQA paper](https://aclanthology.org/2021.acl-long.520/) để đối chiếu quy ước Hits@1.
 
 ## 7. Chạy A1 và chấm output của mọi nhánh
 
 MCP xuất hiện ở **A2-private**: hệ riêng của Phú gọi qua MCP. A2-public là hiện thực đối chiếu trên kho công khai. Huy không xây MCP server/A2; evaluator của Huy nhận JSONL từ hai nhánh này rồi chấm bằng cùng metrics.
 
-A1 dùng cùng model, prompt, KG retrieval budget và token budget như A0; sau khi sinh mới kiểm tra event evidence với permission labels, không bật as-of. Nếu không kiểm chứng được event-level provenance thì A1 từ chối trả lời. Lệnh thứ nhất chạy mức quyền `medium` và ghi output cùng metadata. Lệnh thứ hai chấm output với nhãn quyền và gắn metadata vào metrics:
+A1 dùng cùng model, prompt, KG retrieval budget và token budget như A0; sau khi sinh mới kiểm tra event evidence với permission labels, không bật as-of. A1 từ chối câu trả lời cuối nếu không xác minh được quyền; giữ nguyên reasoning để evaluator đo riêng rò rỉ trong reasoning theo yêu cầu đề. Lệnh thứ nhất chạy mức quyền `medium` và ghi output cùng metadata. Lệnh thứ hai chấm output với nhãn quyền và gắn metadata vào metrics:
 
 ```powershell
-python scripts/run_a1.py --tightness medium --threads 4 --retrieval-budget 64 --max-new-tokens 128
+$ModelRevision = (Get-Content results/a0/run_metadata.json | ConvertFrom-Json).model_revision
+python scripts/run_a1.py --tightness medium --threads 4 --retrieval-budget 64 --max-new-tokens 128 --revision $ModelRevision
 python scripts/evaluate_outputs.py --outputs results/a1/outputs_A1_medium.jsonl --branch A1-medium --tightness medium --permission --permission-file permission/output/permissions_medium.jsonl --run-metadata results/a1/run_metadata_A1_medium.json
 ```
 
@@ -148,12 +162,13 @@ python scripts/evaluate_outputs.py --outputs results/a1/outputs_A1_medium.jsonl 
 
 ```powershell
 python scripts/evaluate_outputs.py --outputs results/a0/outputs_A0.jsonl --branch A0 --tightness medium --permission-file permission/output/permissions_medium.jsonl --run-metadata results/a0/run_metadata.json
+python scripts/evaluate_outputs.py --outputs path/to/A2-public-asof-only.jsonl --branch asof-only --tightness medium --asof --permission-file permission/output/permissions_medium.jsonl --run-metadata path/to/A2-public-asof-only-metadata.json
 python scripts/evaluate_outputs.py --outputs path/to/A2-public.jsonl --branch A2-public --tightness medium --permission --asof --permission-file permission/output/permissions_medium.jsonl --run-metadata path/to/A2-public-metadata.json
 ```
 
-Với A0, có thể chấm lại **cùng một output đã sinh** ba lần bằng ba file permission labels khác nhau để đo leakage dưới từng mức quyền; đây là chấm hậu nghiệm, không phải ba lần chạy mô hình. `--outputs` là file JSONL đầu vào; `--branch` đặt tên nhánh cho file kết quả; `--tightness` ghi mức quyền; `--permission` và `--asof` đánh dấu điều kiện bật trong ô thí nghiệm; `--permission-file` chọn labels dùng để đo leakage (và làm context cho nhánh bật permission); `--run-metadata` gắn sidecar ghi model ID, retrieval/generation settings vào metrics để soát việc các nhánh dùng cùng cấu hình. `--eval-set` và `--kg` chỉ cần đổi nếu dữ liệu nằm chỗ khác; `--out-dir` đổi thư mục kết quả. Với một ô không có permission labels, leakage được ghi `null`/không đo được, không bị tính thành 0%. Evaluator giữ event ID theo số dòng zero-based của `full.txt`, bỏ qua khoảng `start > end`, và dùng khoảng `[start_year, end_year)` với `end_year=0` là còn hiệu lực.
+Ở dòng `asof-only`, permission vẫn OFF; `--permission-file` chỉ cung cấp nhãn tham chiếu để đo leakage hậu nghiệm. Ô này do A2-public chạy ở chế độ chỉ bật as-of; nó không phải A1. Với A0, có thể chấm lại **cùng một output đã sinh** ba lần bằng ba file permission labels khác nhau để đo leakage dưới từng mức quyền; đây là chấm hậu nghiệm, không phải ba lần chạy mô hình. `--outputs` là file JSONL đầu vào; `--branch` đặt tên nhánh cho file kết quả; `--tightness` ghi mức quyền; `--permission` và `--asof` đánh dấu điều kiện bật trong ô thí nghiệm; `--permission-file` chọn labels dùng để đo leakage (và làm context cho nhánh bật permission); `--run-metadata` gắn sidecar ghi model ID, retrieval/generation settings vào metrics để soát việc các nhánh dùng cùng cấu hình. `--eval-set` và `--kg` chỉ cần đổi nếu dữ liệu nằm chỗ khác; `--out-dir` đổi thư mục kết quả. Với một ô không có permission labels, leakage được ghi `null`/không đo được, không bị tính thành 0%. Evaluator giữ event ID theo số dòng zero-based của `full.txt`, bỏ qua khoảng `start > end`, và dùng khoảng `[start_year, end_year)` với `end_year=0` là còn hiệu lực.
 
-Temporal error được tính khi evaluator suy ra được nhãn as-of và latest từ graph cho câu `simple_entity` có năm, head và một relation rõ ràng. Những template khác không bị gán nhãn thay thế bằng `answers` và không nằm trong mẫu số temporal; metrics nêu số câu đủ điều kiện qua `temporal_with_asof`. Leakage attribution nối QID được nhắc tới với fact liên quan câu hỏi trong KG vì Output Contract không có trường provenance riêng; đây là phép đo dựa trên KG, không chứng minh được những sự kiện không thể suy ra từ các QID trong text.
+Temporal error được tính cho mọi nhánh (kể cả A0/A1 khi as-of filtering OFF) nếu evaluator suy ra được nhãn as-of và latest từ graph cho câu `simple_entity` có năm, head và một relation rõ ràng. Những template khác không bị gán nhãn thay thế bằng `answers` và không nằm trong mẫu số temporal; metrics nêu số câu đủ điều kiện qua `temporal_with_asof`. Quy tắc Hits@1 dùng cùng phép so top-1 với tập gold cho temporal scoring; câu trả lời nhắc nhiều Q-ID khác nhau là mơ hồ vì Output Contract không có thứ hạng ứng viên. Leakage attribution nối QID được nhắc tới với fact liên quan câu hỏi trong KG vì Output Contract không có trường provenance riêng; đây là phép đo dựa trên KG, không chứng minh được những sự kiện không thể suy ra từ các QID trong text.
 
 Sau khi đã chấm và có đủ 8 file `detailed_*.json`, dùng lệnh dưới đây để tổng hợp (không chạy lại mô hình). `--a0` và `--asof-only` là hai ô OFF dùng chung; sáu cờ còn lại nhận kết quả permission-only và ON/ON cho từng mức. Mỗi file phải có cùng question IDs. `--bootstrap` đặt số lần bootstrap (mặc định 10.000), `--seed` đặt seed để tái lập khoảng tin cậy, `--output` đổi đường dẫn file tổng hợp:
 
@@ -161,6 +176,6 @@ Sau khi đã chấm và có đủ 8 file `detailed_*.json`, dùng lệnh dưới
 python scripts/summarize_experiment.py --a0 results/evaluated/detailed_A0.json --asof-only results/evaluated/detailed_asof-only.json --permission-loose results/evaluated/detailed_permission-loose.json --permission-medium results/evaluated/detailed_permission-medium.json --permission-strict results/evaluated/detailed_permission-strict.json --both-loose results/evaluated/detailed_both-loose.json --both-medium results/evaluated/detailed_both-medium.json --both-strict results/evaluated/detailed_both-strict.json
 ```
 
-Script này xuất `ΔP`, `ΔT`, `ΔPT`, độ lệch cộng tính và khoảng tin cậy 95% vào `results/experiment_summary.json`. Các đường dẫn tên nhánh chỉ là ví dụ; `--branch` khi chấm output quyết định tên file `detailed_*.json`.
+Script này xuất `ΔP`, `ΔT`, `ΔPT`, khoảng tin cậy bootstrap ghép cặp 95% cho từng mức, và khoảng tin cậy cho độ lệch cộng tính `ΔPT - ΔP - ΔT` vào `results/experiment_summary.json`. Khoảng của độ lệch có chứa 0 thì dữ liệu chưa bác bỏ tính cộng tính ở mức 5%; điều đó không chứng minh giả thuyết đúng. Các đường dẫn tên nhánh chỉ là ví dụ; `--branch` khi chấm output quyết định tên file `detailed_*.json`.
 
 ---

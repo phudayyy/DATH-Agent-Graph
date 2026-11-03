@@ -10,11 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass
 
-from .metrics import (
-    MetricsAggregator, EvaluationOutput, AggregatedMetrics,
-    compute_delta_metrics
-)
-from .hits_at_1 import normalize_answer
+from .metrics import MetricsAggregator, EvaluationOutput, AggregatedMetrics
 from .kg_index import KGEventIndex
 
 
@@ -199,8 +195,10 @@ class EvaluationRunner:
             if self.enable_permission:
                 allowed_events = scoped_events or set()
 
-            # Get as-of year
-            as_of_year = self._get_as_of_year(question) if self.enable_asof else 0
+            # Preserve the question's as-of year for metric labels on every
+            # branch. Only pass it into the branch when as-of filtering is ON.
+            query_as_of_year = self._get_as_of_year(question)
+            branch_as_of_year = query_as_of_year if self.enable_asof else 0
 
             # Get gold answers
             gold_answers = question.answers
@@ -209,21 +207,11 @@ class EvaluationRunner:
 
             # Run branch
             start_time = time.perf_counter()
-            try:
-                output = self.branch_fn(
-                    question=question,
-                    allowed_event_ids=allowed_events,
-                    as_of_year=as_of_year
-                )
-            except Exception as e:
-                print(f"Error on question {qid}: {e}")
-                output = EvaluationOutput(
-                    question_id=qid,
-                    answer="",
-                    reasoning=f"ERROR: {e}",
-                    latency_ms=0,
-                    tokens=0
-                )
+            output = self.branch_fn(
+                question=question,
+                allowed_event_ids=allowed_events,
+                as_of_year=branch_as_of_year
+            )
 
             elapsed_ms = int((time.perf_counter() - start_time) * 1000)
             if self.measure_latency:
@@ -236,7 +224,7 @@ class EvaluationRunner:
                 if scoped_events is not None and self.event_index is not None
                 else None
             )
-            output.as_of_year = as_of_year if as_of_year > 0 else None
+            output.as_of_year = query_as_of_year if query_as_of_year > 0 else None
             output.gold_answers = list(gold_answers)
             output.gold_answers_at_asof = list(gold_at_asof) if gold_at_asof is not None else None
             output.gold_answers_latest = list(gold_latest) if gold_latest is not None else None
@@ -263,6 +251,7 @@ class EvaluationRunner:
         """Save per-question detailed results."""
         detailed = []
         for i, qid in enumerate(aggregator.question_ids):
+            temporal = aggregator.temporal_results[i]
             detailed.append({
                 'question_id': qid,
                 'hits_at_1': aggregator.hits_results[i].hits_at_1,
@@ -271,8 +260,9 @@ class EvaluationRunner:
                 'leakage_scored': aggregator.leakage_scored[i],
                 'leakage_location': aggregator.leakage_results[i].leakage_location.value,
                 'leaked_events': aggregator.leakage_results[i].leaked_events,
-                'temporal_error': aggregator.temporal_results[i].has_temporal_error if i < len(aggregator.temporal_results) else False,
-                'temporal_error_type': aggregator.temporal_results[i].error_type if i < len(aggregator.temporal_results) else 'n/a',
+                'temporal_scored': temporal is not None,
+                'temporal_error': temporal.has_temporal_error if temporal is not None else None,
+                'temporal_error_type': temporal.error_type if temporal is not None else 'not_scored',
                 'latency_ms': aggregator.latencies[i],
                 'tokens': aggregator.tokens[i]
             })
@@ -377,9 +367,10 @@ def post_generation_filter(answer: str, reasoning: str, allowed_event_ids: set,
                            *, question_entities=None, relations=None,
                            event_index=None) -> tuple:
     """
-    A1 post-generation filter.
-    Refuses the answer or removes reasoning when query-grounded evidence
-    includes an event outside the caller's allowed event set.
+    A1 post-generation final-answer filter.
+    Refuses the final answer when its query-grounded evidence includes an
+    event outside the caller's allowed event set. Reasoning is preserved so
+    the common evaluator can measure reasoning-only leakage separately.
     """
     import re
 
@@ -388,8 +379,9 @@ def post_generation_filter(answer: str, reasoning: str, allowed_event_ids: set,
         return answer, reasoning
     if event_index is None:
         # Fail closed: without KG provenance, entity QIDs cannot be compared
-        # to event permission IDs safely.
-        return ("I cannot answer because event-level authorization could not be verified.", "")
+        # to event permission IDs safely. Preserve reasoning for the evaluator
+        # to score instead of silently erasing a possible reasoning leak.
+        return ("I cannot answer because event-level authorization could not be verified.", reasoning)
 
     anchors = {str(e).upper() for e in (question_entities or set())}
     rels = {str(r).upper() for r in (relations or set())}
@@ -408,10 +400,12 @@ def post_generation_filter(answer: str, reasoning: str, allowed_event_ids: set,
         return any(str(eid) not in allowed for eid in evidence)
 
     answer_leaks = has_unauthorized_evidence(answer)
-    reasoning_leaks = has_unauthorized_evidence(reasoning)
+    # A1 is a final-answer post-filter. Keep the original reasoning intact so
+    # the evaluator can measure reasoning-only leakage as required by the
+    # experiment; suppressing it here would make A1's leakage look too low.
     return (
         "I cannot answer because the available evidence is outside your permissions." if answer_leaks else answer,
-        "" if reasoning_leaks else reasoning,
+        reasoning,
     )
 
 

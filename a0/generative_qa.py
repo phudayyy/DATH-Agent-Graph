@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
-DEFAULT_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
+DEFAULT_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
+DEFAULT_MODEL_REVISION = "7ae557604adf67be50417f59c2c2f167def9a775"
 DEFAULT_RETRIEVAL_BUDGET = 64
 
 
@@ -18,7 +19,7 @@ class GenerativeKGQA:
 
     def __init__(self, event_index, model_id: str = DEFAULT_MODEL,
                  max_new_tokens: int = 128, threads: int = 4,
-                 revision: str = "main"):
+                 revision: str = DEFAULT_MODEL_REVISION):
         try:
             import torch
             from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -55,7 +56,8 @@ class GenerativeKGQA:
         return (f"event_id={event_id}: ({head}, {relation}, {tail}), "
                 f"valid_years=[{start},{end_text})")
 
-    def _prompt(self, question: Mapping[str, Any], facts: Sequence[tuple]) -> str:
+    def _prompt(self, question: Mapping[str, Any], facts: Sequence[tuple],
+                retrieval_budget: int) -> str:
         fact_text = "\n".join(self._format_fact(event) for event in facts)
         messages = [
             {"role": "system", "content": (
@@ -72,7 +74,7 @@ class GenerativeKGQA:
                 f"Linked entities: {', '.join(map(str, question.get('entities', [])))}\n"
                 f"Relations: {', '.join(map(str, question.get('relations', [])))}\n"
                 f"Question years: {', '.join(map(str, question.get('times', [])))}\n"
-                f"KG facts (retrieval budget {DEFAULT_RETRIEVAL_BUDGET}):\n{fact_text}"
+                f"KG facts (retrieval budget {retrieval_budget}):\n{fact_text}"
             )},
         ]
         return self.tokenizer.apply_chat_template(
@@ -96,7 +98,7 @@ class GenerativeKGQA:
 
     def predict(self, question: Mapping[str, Any], retrieval_budget: int = DEFAULT_RETRIEVAL_BUDGET):
         facts = self.event_index.retrieve_question(question, limit=retrieval_budget)
-        prompt = self._prompt(question, facts)
+        prompt = self._prompt(question, facts, retrieval_budget)
         encoded = self.tokenizer(prompt, return_tensors="pt", truncation=True,
                                  max_length=4096)
         with self.torch.inference_mode():

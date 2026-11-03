@@ -6,7 +6,7 @@ from typing import Callable, Optional
 from evaluation.metrics import EvaluationOutput
 from evaluation.runner import create_a0_branch
 
-from .generative_qa import DEFAULT_MODEL, DEFAULT_RETRIEVAL_BUDGET, GenerativeKGQA
+from .generative_qa import DEFAULT_MODEL, DEFAULT_MODEL_REVISION, DEFAULT_RETRIEVAL_BUDGET, GenerativeKGQA
 from evaluation.kg_index import KGEventIndex
 
 REPO_DIR = Path(__file__).resolve().parent.parent
@@ -17,7 +17,7 @@ def get_a0_branch(
     *,
     engine: Optional[GenerativeKGQA] = None,
     model_id: str = DEFAULT_MODEL,
-    revision: str = "main",
+    revision: str = DEFAULT_MODEL_REVISION,
     retrieval_budget: int = DEFAULT_RETRIEVAL_BUDGET,
     kg_path: Path = REPO_DIR / "data" / "wikidata_big" / "kg" / "full.txt",
     threads: int = 4,

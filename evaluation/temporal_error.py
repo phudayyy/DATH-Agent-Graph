@@ -3,9 +3,10 @@ Temporal error evaluation metric.
 Measures errors where answer is correct for latest state but wrong for as-of time.
 """
 
-from typing import Set, List, Dict, Optional, Tuple
+from typing import Set, List, Dict, Optional
 from dataclasses import dataclass
-from datetime import datetime
+
+from .hits_at_1 import compute_hits_at_1
 
 
 @dataclass
@@ -29,17 +30,6 @@ def parse_year_from_question(question: dict) -> Optional[int]:
     return None
 
 
-def normalize_answer(answer: str) -> str:
-    """Normalize answer for comparison."""
-    if answer is None or answer == "":
-        return ""
-    answer = str(answer)
-    answer = answer.strip()
-    if answer.startswith('Q') and answer[1:].isdigit():
-        return answer.upper()
-    return answer.lower().strip()
-
-
 def check_temporal_error(
     predicted: str,
     gold_at_asof: Set[str],
@@ -60,15 +50,12 @@ def check_temporal_error(
     Returns:
         TemporalErrorResult
     """
-    pred_norm = normalize_answer(predicted)
-    gold_asof_norm = {normalize_answer(a) for a in gold_at_asof}
-    gold_latest_norm = {normalize_answer(a) for a in gold_latest}
-
-    # Case 1: Correct at as-of time (exact or Q-id embedded in prose,
-    # mirroring compute_hits_at_1's extracted_qid handling)
-    import re
-    extracted = {normalize_answer(q) for q in re.findall(r'\b(Q\d+)\b', predicted or '', re.IGNORECASE)}
-    if pred_norm in gold_asof_norm or bool(extracted & gold_asof_norm):
+    # Use the same strict rank-1 decision as Hits@1. In particular, an
+    # answer mentioning multiple distinct QIDs is ambiguous, not a hit merely
+    # because one of the mentioned entities belongs to a gold set.
+    hits_asof = compute_hits_at_1(predicted, gold_at_asof).hits_at_1 == 1.0
+    hits_latest = compute_hits_at_1(predicted, gold_latest).hits_at_1 == 1.0
+    if hits_asof:
         return TemporalErrorResult(
             question_id=-1,
             has_temporal_error=False,
@@ -79,11 +66,8 @@ def check_temporal_error(
             error_type='correct'
         )
 
-    # Case 2: Temporal error - correct at latest but wrong at as-of
-    # (reuses `extracted` from Case 1).
-    latest_hits = (pred_norm in gold_latest_norm) or bool(extracted & gold_latest_norm)
-    asof_hits = bool(extracted & gold_asof_norm)
-    if latest_hits and not asof_hits:
+    # Case 2: Temporal error - correct at latest but wrong at as-of.
+    if hits_latest and not hits_asof:
         return TemporalErrorResult(
             question_id=-1,
             has_temporal_error=True,

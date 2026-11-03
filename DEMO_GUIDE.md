@@ -165,7 +165,7 @@ Nếu môi trường Python chưa cài dependencies:
 python -m pip install torch transformers accelerate
 ```
 
-Chạy A0 trên CPU bằng model mặc định `Qwen/Qwen2.5-1.5B-Instruct` (A1 dùng cùng model; lần đầu có thể tải model về cache):
+Chạy A0 trên CPU bằng model mặc định `Qwen/Qwen2.5-0.5B-Instruct` (A1 phải dùng cùng model và revision; lần đầu có thể tải model về cache):
 
 ```powershell
 python scripts/run_a0.py --threads 4 --retrieval-budget 64 --max-new-tokens 128
@@ -205,7 +205,8 @@ python scripts/evaluate_outputs.py --outputs results/a0/outputs_A0.jsonl --branc
 Chạy thử A1 ở mức medium:
 
 ```powershell
-python scripts/run_a1.py --tightness medium --threads 4 --retrieval-budget 64 --max-new-tokens 128
+$ModelRevision = (Get-Content results/a0/run_metadata.json | ConvertFrom-Json).model_revision
+python scripts/run_a1.py --tightness medium --threads 4 --retrieval-budget 64 --max-new-tokens 128 --revision $ModelRevision
 python scripts/evaluate_outputs.py --outputs results/a1/outputs_A1_medium.jsonl --branch A1-medium --tightness medium --permission --permission-file permission/output/permissions_medium.jsonl --run-metadata results/a1/run_metadata_A1_medium.json
 ```
 
@@ -215,7 +216,7 @@ Chấm output A2-public do Phú bàn giao (đổi đường dẫn theo file th�
 python scripts/evaluate_outputs.py --outputs path\to\A2-public.jsonl --branch A2-public-medium --tightness medium --permission --asof --permission-file permission/output/permissions_medium.jsonl --run-metadata path\to\A2-public-metadata.json
 ```
 
-**Trong demo:** cho thấy A1 có post-generation filter, A2-public đi qua cùng evaluator, IDs khớp đủ 1.500 câu, metadata ghi cùng model/retrieval budget. Nếu A2-public chưa chạy, ghi rõ phụ thuộc đang chờ Phú; không trình bày A2-private/MCP như phần Huy đã làm.
+**Trong demo:** nói rõ A0 tắt cả hai filter; A1 chỉ lọc permission sau khi sinh và giữ reasoning để evaluator chấm leakage riêng; A2 bật cả permission và as-of trong truy vấn. Ô OFF/ON là ablation as-of-only, không phải A1. Cho thấy A2-public đi qua cùng evaluator, IDs khớp đủ 1.500 câu, metadata ghi cùng model/retrieval budget. Nếu A2-public chưa chạy, ghi rõ phụ thuộc đang chờ Phú; không trình bày A2-private/MCP như phần Huy đã làm.
 
 ## W8 — Vá A1/A2 integration và kiểm thử hồi quy
 
@@ -235,9 +236,10 @@ python scripts/evaluate_outputs.py --outputs results/a1/outputs_A1_medium.jsonl 
 Chạy A1 cho ba mức (cùng model, revision, retrieval budget và token budget):
 
 ```powershell
-python scripts/run_a1.py --tightness loose --threads 4 --retrieval-budget 64 --max-new-tokens 128
-python scripts/run_a1.py --tightness medium --threads 4 --retrieval-budget 64 --max-new-tokens 128
-python scripts/run_a1.py --tightness strict --threads 4 --retrieval-budget 64 --max-new-tokens 128
+$ModelRevision = (Get-Content results/a0/run_metadata.json | ConvertFrom-Json).model_revision
+python scripts/run_a1.py --tightness loose --threads 4 --retrieval-budget 64 --max-new-tokens 128 --revision $ModelRevision
+python scripts/run_a1.py --tightness medium --threads 4 --retrieval-budget 64 --max-new-tokens 128 --revision $ModelRevision
+python scripts/run_a1.py --tightness strict --threads 4 --retrieval-budget 64 --max-new-tokens 128 --revision $ModelRevision
 ```
 
 Sau đó chấm từng output bằng `scripts/evaluate_outputs.py`, với `--permission`, permission file và metadata khớp mức tương ứng. Lưu cấu hình đóng băng và revision model cạnh kết quả.
@@ -252,19 +254,25 @@ Sau đó chấm từng output bằng `scripts/evaluate_outputs.py`, với `--per
 python -m pytest tests/ -v
 ```
 
-**Trong demo:** chọn một câu và lần theo question ID từ eval set → permission label → output → detailed result; giải thích riêng mẫu số leakage final/reasoning và temporal error. Temporal error chỉ được tính cho câu đủ điều kiện theo phạm vi đã ghi trong README.
+**Trong demo:** chọn một câu và lần theo question ID từ eval set → permission label → output → detailed result; giải thích riêng mẫu số leakage final/reasoning và temporal error. Temporal error được đo ở A0/A1 dù bộ lọc as-of tắt; chỉ tính trên câu đủ điều kiện theo phạm vi đã ghi trong README.
 
 ## W11 — Đủ 8 runs, bootstrap CI và cổng paper
 
 **Mục tiêu:** có đủ tám lần chạy phân biệt theo thiết kế, tính paired bootstrap CI và quyết định có tiếp tục paper hay không.
 
-Các ô OFF/OFF và OFF/ON được chạy một lần dùng chung; các ô permission-only và permission+as-of chạy theo ba mức. `A2-public` cần hỗ trợ các điều kiện ma trận mà đề yêu cầu; Phú cung cấp output A2. Đảm bảo mỗi file `detailed_*.json` có cùng 1.500 question IDs.
+Các ô OFF/OFF (A0) và OFF/ON (as-of-only ablation) được chạy một lần dùng chung; permission-only là A1, còn permission+as-of là A2-public, mỗi ô chạy theo ba mức quyền. A0 không lọc permission/as-of; A1 chỉ lọc permission sau khi sinh; A2 lọc cả hai trong truy vấn. Đảm bảo mỗi file `detailed_*.json` có cùng 1.500 question IDs.
+
+Chấm output as-of-only do Phú bàn giao với permission OFF; permission file ở đây chỉ dùng làm nhãn tham chiếu leakage hậu nghiệm:
+
+```powershell
+python scripts/evaluate_outputs.py --outputs path\to\A2-public-asof-only.jsonl --branch asof-only --tightness medium --asof --permission-file permission/output/permissions_medium.jsonl --run-metadata path\to\A2-public-asof-only-metadata.json
+```
 
 ```powershell
 python scripts/summarize_experiment.py --a0 results/evaluated/detailed_A0.json --asof-only results/evaluated/detailed_asof-only.json --permission-loose results/evaluated/detailed_permission-loose.json --permission-medium results/evaluated/detailed_permission-medium.json --permission-strict results/evaluated/detailed_permission-strict.json --both-loose results/evaluated/detailed_both-loose.json --both-medium results/evaluated/detailed_both-medium.json --both-strict results/evaluated/detailed_both-strict.json --bootstrap 10000 --seed 42
 ```
 
-**Output cần có:** `results/experiment_summary.json` với ΔP, ΔT, ΔPT, độ lệch cộng tính và CI 95%. Chấm lại một output A0 với ba permission files không tạo thêm model run. Nếu thiếu bất kỳ ô nào trong tám ô, chưa đạt cổng W11.
+**Output cần có:** `results/experiment_summary.json` với ΔP, ΔT, ΔPT, CI bootstrap ghép cặp 95% cho từng mức và CI cho độ lệch `ΔPT - ΔP - ΔT`. Chấm lại một output A0 với ba permission files không tạo thêm model run. Nếu thiếu bất kỳ ô nào trong tám ô, chưa đạt cổng W11.
 
 **Trong demo:** trình bày bảng 2×2, ghi rõ hai ô permission-off dùng chung, kết quả CI, số câu đủ điều kiện của từng metric và quyết định paper theo cổng đề tài.
 

@@ -9,7 +9,7 @@ Kho này gồm hai phần:
 - **Hệ thống** (`src/`): một đồ thị tri thức tối thiểu trả lời câu hỏi [CRONQUESTIONS](https://github.com/apoorvumang/CronKGQA) qua một **gói ngữ cảnh** (context pack), giữ hai tính chất của hệ mà nó được cắt ra:
   - **Bi-temporal.** Mỗi sự kiện mang thời điểm nó đúng ngoài đời (`valid_from`/`valid_to`) và thời điểm được ghi nhận (`observed_at`/`expired_at`). Câu hỏi được hỏi *tại một mốc* (`as_of`), và chỉ những gì đúng tại mốc đó mới hiện ra.
   - **Lọc quyền, mặc định đóng (fail-closed).** Một thực thể chỉ hiện với principal mà một hàng ACL cấp, trong đúng những năm hàng đó bao phủ. Bước cắt quyền chạy trước mọi bước cắt gói, và gói cho biết có bao nhiêu đối tượng liên quan bị giữ lại — không cho biết là đối tượng nào.
-- **Khung đánh giá** (mục *Khung đánh giá* bên dưới): dữ liệu `data_v2`, tập 1.500 câu đã khoá, bộ sinh mạng lưới quyền, các lệnh tái lập và định dạng kết quả.
+- **Khung đánh giá** (mục *Khung đánh giá* bên dưới): dữ liệu `data_v2`, tập 1.500 câu đã khoá và đóng băng, bộ sinh mạng lưới quyền, các lệnh tái lập và định dạng kết quả.
 
 ## Yêu cầu hệ thống
 
@@ -75,6 +75,16 @@ uv run pytest -q
 
 CI (`.github/workflows/ci.yml`) chạy `ruff`, `mypy` (strict) và `pytest` cho mỗi pull request và mỗi lần đẩy lên `main`.
 
+### Ba kiểm thử bắt buộc (phiếu đề tài, mục 6)
+
+| # | Phiếu yêu cầu | Kiểm thử |
+|---|---|---|
+| 1 | Cùng một hạt giống sinh lại đúng cùng một phân quyền; một vai trò giả đã biết đáp án thấy đúng tập sự kiện tính tay | `tests/test_permission.py::test_the_same_seed_regenerates_the_same_labels_byte_for_byte` chạy `scripts/generate_permissions.py` ở hai tiến trình có `PYTHONHASHSEED` khác nhau, so từng byte mọi tệp, rồi so với dấu vân tay ghim lúc đóng băng. `::test_a_known_role_sees_exactly_the_hand_computed_events` lấy tập nhìn thấy được qua đúng đường của thí nghiệm (bộ sinh → tệp → `EvaluationRunner`) và so với tập tính tay `{0, 2, 4, 6}`. |
+| 2 | Hàm chấm tỉ lệ rò đúng kết quả tay trên năm câu trả lời giả, có một câu chỉ rò ở phần suy luận | `tests/test_leakage.py::test_five_fake_answers_score_exactly_as_computed_by_hand` chấm qua `MetricsAggregator`, đúng đường của bộ chạy. `::test_a1_looks_leak_free_on_final_answers_yet_still_leaks_through_reasoning`: chỉ chấm câu trả lời cuối thì A1 rò 0/5, trong khi thật ra rò 2/5. |
+| 3 | Thực thể giả có ba khoảng valid time: ba giá trị ở ba mốc, tại đúng biên theo nửa khoảng đóng bên trái | `tests/test_asof.py::test_three_intervals_give_three_values_and_the_boundary_is_left_closed` hỏi truy vấn đồ thị thật trên Postgres tại đúng 1/1/1995 và một micro giây trước đó. `::test_the_graph_query_and_the_evaluator_agree_on_every_year` canh truy vấn đồ thị và khung đo khớp nhau từng năm. |
+
+Quy ước mà kiểm thử 3 canh nằm ở mục *Quy ước thời gian* bên dưới. `tests/test_frozen_dataset.py` canh tập dữ liệu đã đóng băng (mục *Đóng băng tập dữ liệu*).
+
 ## Khung đánh giá (Evaluation Framework)
 
 ### 1. Dữ liệu CRONQUESTIONS bản data_v2
@@ -82,13 +92,20 @@ CI (`.github/workflows/ci.yml`) chạy `ruff`, `mypy` (strict) và `pytest` cho 
 Theo yêu cầu đề tài, dự án **bắt buộc dùng bản `data_v2.zip`** (giấy phép MIT), tuyệt đối không dùng bản `data.zip` v1 vì tác giả gốc đã xác nhận bản v1 có **31.951 trên 410.000 câu bị lỗi dữ liệu**.
 
 * **Vị trí lưu trữ**: `data/wikidata_big/`
+* **Tải** (đường dẫn trong README của CronKGQA), tại gốc kho:
+  ```bash
+  gdown https://drive.google.com/uc?id=1fe7-x7ChszqzczKncoZcpwmWc1PBq1_0   # data_v2.zip, 83.537.446 byte
+  shasum -a 256 data_v2.zip   # 0a2f77148977afb02a159b23cc942925b9455c98fcbe61ef164706324fd4734e
+  unzip -q data_v2.zip        # tạo data/wikidata_big/
+  ```
+  Hash của từng tệp bên trong nằm trong `eval_set/frozen_manifest.json`.
 * **Quy mô đồ thị (`kg/full.txt`)**:
   * **328.635** sự kiện (events / facts) có mốc thời gian theo năm.
   * **125.726** thực thể (entities).
   * **203** quan hệ (relations).
 * **Kết quả audit dữ liệu (chế độ chỉ đọc)**:
   * Không có dòng nào bị lỗi định dạng (0 malformed lines).
-  * Phát hiện **652 sự kiện** có `start_year > end_year` (nhiễu từ Wikidata gốc). Giữ nguyên `event_id` theo số dòng của file `full.txt` để không làm xáo trộn index, nhưng coi đây là khoảng thời gian rỗng (không match với bất kỳ mốc as-of nào). Chi tiết xem tại `data/AUDIT_REPORT.md`.
+  * Phát hiện **652 sự kiện** có `start_year > end_year` (nhiễu từ Wikidata gốc), kể cả dòng duy nhất có năm kết thúc 0. Giữ nguyên `event_id` theo số dòng của file `full.txt` để không làm xáo trộn index, nhưng coi đây là khoảng thời gian rỗng (không match với bất kỳ mốc as-of nào — xem *Quy ước thời gian*). Chi tiết xem tại `data/AUDIT_REPORT.md`.
 
 ---
 
@@ -130,13 +147,29 @@ Do quyền thực tế của doanh nghiệp (ACL 26 nguồn SaaS) là dữ liệ
   4. Ngoài ra, luôn tồn tại vai trò **`public`** (thấy 100% sự kiện) dùng cho baseline A0 (không lọc quyền).
 * **Cơ chế gán quyền**: Mỗi vai trò giữ một lõi ngữ nghĩa (semantic core gồm các quan hệ theo nhóm chuyên môn như sports, employment, political...) kết hợp bù sự kiện ngẫu nhiên theo chỉ tiêu; câu hỏi được gán vào vai trò có độ trùng khớp thực thể/quan hệ cao nhất.
 * **Kết quả sinh nhãn**:
-  * Định nghĩa vai trò: `permission/output/roles_{loose,medium,strict}.json`
+  * Định nghĩa vai trò: `permission/output/roles_{loose,medium,strict}.json` — không commit vì quá lớn (84 MB); sinh lại bằng bước B2, và hash của chúng được ghim trong `eval_set/frozen_manifest.json`.
   * Nhãn quyền gán cho từng câu: `permission/output/permissions_{loose,medium,strict}.jsonl` (đúng 1.500 dòng/file).
   * Tổng hợp thông số: `permission/output/generation_summary.json`
 
 ---
 
-### 4. Các lệnh chạy tái lập (Reproduce Steps)
+### 4. Đóng băng tập dữ liệu (04/11/2026)
+
+Tập đánh giá có quyền và có mốc thời gian — 1.500 câu cùng nhãn quyền ba mức — đã **đóng băng**. `eval_set/frozen_manifest.json` ghim SHA-256 của:
+
+* 7 tệp đã commit: `eval_set/{selected_question_ids,eval_set,eval_metadata}.json`, `permission/output/permissions_{loose,medium,strict}.jsonl` và `permission/output/generation_summary.json`;
+* 3 tệp sinh lại được nhưng không commit: `permission/output/roles_{loose,medium,strict}.json`;
+* `data_v2.zip` và bốn tệp gốc bên trong (`kg/full.txt`, `questions/test.pickle` và hai tệp nhãn) — tức đúng bản data_v2, không phải `data.zip`.
+
+Tại ngày đóng băng, sinh lại từ data_v2 với seed 42 bằng đúng mã của kho cho ra **cả 10 tệp trùng từng byte** với bản đã ghim.
+
+* **Trong CI**, `tests/test_frozen_dataset.py` đỏ ngay khi một byte của 7 tệp đã commit đổi.
+* **Khi có data_v2**, `python scripts/freeze_dataset.py --data data/wikidata_big` sinh lại cả 10 tệp vào một thư mục tạm, rồi so từng byte chúng và các tệp gốc với manifest. Pickle câu hỏi được nạp bằng một Unpickler từ chối mọi global, nên không mã nào nằm trong tệp có thể chạy.
+* **Đổi tập dữ liệu sau mốc này** là một lần đóng băng lại có chủ đích: sinh lại dữ liệu, chạy `scripts/freeze_dataset.py --data data/wikidata_big --write`, rồi commit manifest mới cùng dữ liệu mới. Nếu bộ sinh quyền đổi, cũng phải cập nhật dấu vân tay `FROZEN_FIXTURE_DIGEST` trong `tests/test_permission.py`.
+
+---
+
+### 5. Các lệnh chạy tái lập (Reproduce Steps)
 
 Bất kỳ ai clone repository này về đều có thể chạy lại các lệnh sau để tái lập chính xác 100% dữ liệu:
 
@@ -154,14 +187,18 @@ python scripts/generate_permissions.py --seed 42
 python scripts/verify_reproduce.py --seed 42
 # -> Kết quả: PASS (tất cả file nhãn byte-identical, mỗi file đủ 1500 dòng)
 
-# B4. Chạy bộ unit test bắt buộc (chấm 15 điểm tiêu chí A3)
-python -m pytest tests/ -v
-# -> Kết quả: 28 passed (7 test permission + 12 test leakage + 9 test as-of)
+# B4. Chạy toàn bộ kiểm thử, gồm ba kiểm thử bắt buộc (chấm 15 điểm tiêu chí A3)
+uv run pytest -q
+# -> 54 passed: 7 permission + 10 leakage + 9 as-of + 11 tập đóng băng + 17 của hệ thống
+
+# B5. Kiểm tập dữ liệu đã đóng băng: sinh lại từ data_v2, so từng byte với manifest
+python scripts/freeze_dataset.py --data data/wikidata_big
+# -> FROZEN CHECK: PASS
 ```
 
 ---
 
-### 5. Output Contract
+### 6. Output Contract
 
 ```json
 {
@@ -190,6 +227,17 @@ python -m pytest tests/ -v
 | Cắt | Thực thể người hỏi không được thấy bị bỏ và được đếm; sau đó gói bị giới hạn 50 thực thể và 100 quan hệ. |
 
 Hỏi tại một mốc duy nhất là ngữ nghĩa **ảnh chụp** của hệ gốc. Nó không trả lời được câu không nêu năm — *khi nào*, *đầu tiên/cuối cùng*, *trước/sau* — và bộ chạy báo điều đó thành con số thay vì che đi.
+
+## Quy ước thời gian (nửa khoảng đóng bên trái)
+
+Truy vấn đồ thị (`agent_graph`) và khung đo (`evaluation`) dùng **một** quy ước:
+
+- Fact `[start, end]` tính theo năm thành nửa khoảng **đóng bên trái, mở bên phải** `[1/1/start, 1/1/(end+1))` theo UTC. Fact đúng tại mốc `t` ⇔ `valid_from <= t < valid_to`.
+- **Tại đúng biên**, mốc `1/1/(end+1)` thuộc khoảng SAU chứ không thuộc khoảng trước. Ví dụ: `Q21` đúng trong `[1990, 1994]`, `Q22` đúng trong `[1995, 1999]`. Hỏi tại đúng `1/1/1995 00:00 UTC` thì chỉ ra `Q22`; hỏi sớm hơn một micro giây thì chỉ ra `Q21`.
+- Ở độ mịn năm (câu nêu năm Y được hỏi tại 1/1/Y), fact đúng trong năm Y ⇔ `start <= Y <= end`, tức **năm kết thúc được tính**. Fact điểm (`start == end`, chiếm 48% số fact của data_v2) đúng trong đúng năm đó.
+- Khoảng có `start > end` là rỗng. Data_v2 có 652 dòng như vậy, kể cả dòng duy nhất có năm kết thúc 0 (`Q500099 P793 Q1190554 600 0`).
+
+Căn cứ: hàm `discretizeKG` của CronKGQA (`tkbc/Untitled1.ipynb`) duyệt `range(start, end + 1)`. Trên cả 360 câu `simple_entity` của tập đóng băng, quy ước này tái tạo đúng tập đáp án vàng của CRONQUESTIONS; quy ước `[start, end)` chỉ tái tạo được 149/360. Kiểm thử bắt buộc số 3 canh quy ước này, và canh rằng hai hiện thực khớp nhau từng năm.
 
 ## Mạng quyền của bộ nạp
 

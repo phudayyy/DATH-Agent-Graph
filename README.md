@@ -1,10 +1,83 @@
-# CO3101 G1 - Khung Đánh Giá Đề Tài (Evaluation Framework)
+# ĐATH - Agent Graph · CO3101 G1
 
 Đề tài: **Đo lường tác động của cơ chế lọc quyền truy cập và lọc thời gian (as-of) lên hệ thống Temporal KGQA.**
 
----
+## Tổng quan
 
-## 1. Dữ liệu CRONQUESTIONS bản data_v2
+Kho này gồm hai phần:
+
+- **Hệ thống** (`src/`): một đồ thị tri thức tối thiểu trả lời câu hỏi [CRONQUESTIONS](https://github.com/apoorvumang/CronKGQA) qua một **gói ngữ cảnh** (context pack), giữ hai tính chất của hệ mà nó được cắt ra:
+  - **Bi-temporal.** Mỗi sự kiện mang thời điểm nó đúng ngoài đời (`valid_from`/`valid_to`) và thời điểm được ghi nhận (`observed_at`/`expired_at`). Câu hỏi được hỏi *tại một mốc* (`as_of`), và chỉ những gì đúng tại mốc đó mới hiện ra.
+  - **Lọc quyền, mặc định đóng (fail-closed).** Một thực thể chỉ hiện với principal mà một hàng ACL cấp, trong đúng những năm hàng đó bao phủ. Bước cắt quyền chạy trước mọi bước cắt gói, và gói cho biết có bao nhiêu đối tượng liên quan bị giữ lại — không cho biết là đối tượng nào.
+- **Khung đánh giá** (mục *Khung đánh giá* bên dưới): dữ liệu `data_v2`, tập 1.500 câu đã khoá, bộ sinh mạng lưới quyền, các lệnh tái lập và định dạng kết quả.
+
+## Yêu cầu hệ thống
+
+- Python 3.12 trở lên và [uv](https://docs.astral.sh/uv/).
+- Không cần cài Postgres hay Docker: Postgres chạy nhúng qua `pgserver`.
+
+## Cài đặt
+
+```bash
+git clone https://github.com/phudayyy/DATH-Agent-Graph.git
+cd DATH-Agent-Graph
+uv sync --extra dev
+```
+
+## Chạy thử nhanh (Smoke test)
+
+Một lệnh chạy từ đầu đến cuối trên bộ dữ liệu mẫu kèm sẵn trong `tests/data/` (cùng định dạng `data_v2`): dựng Postgres nhúng, nạp đồ thị, hỏi 4 câu, ghi mỗi câu một dòng JSON vào `runs/smoke.jsonl` và in độ phủ đáp án theo loại câu.
+
+```bash
+uv run python -m agent_graph.run --kg tests/data/kg --questions tests/data/questions.jsonl --out runs/smoke.jsonl
+```
+
+Kết quả mong đợi (mã thoát 0):
+
+```
+load: {"lines": 11, "malformed": 2, "out_of_range": 1, "reversed": 1, "self_loop": 1, "merged": 1, "facts": 5, "entities": 6, "grants": 6, "unknown_grant_items": 0}
+    first_last:     0 / 1     đáp án nằm trong gói
+ simple_entity:     2 / 2     đáp án nằm trong gói
+   simple_time:     0 / 1     đáp án nằm trong gói
+          tổng:     2 / 4
+```
+
+Bộ mẫu cố ý chứa dòng hỏng, dòng ngược năm, dòng tự trỏ và khoảng chồng nhau, nên dòng `load:` đếm đủ từng loại. Hai câu không nêu năm trượt là đúng thiết kế — xem *Cách hệ thống trả lời một câu hỏi*.
+
+## Chạy trên dữ liệu thật
+
+Sau khi tải `data_v2` theo mục *Dữ liệu CRONQUESTIONS bản data_v2* bên dưới, đổi file câu hỏi pickle sang JSON Lines **một lần** — pickle chạy mã nằm trong file khi đọc, nên chỉ mở file chính thức:
+
+```bash
+uv run python -m agent_graph.cronquestions convert data/wikidata_big/questions/test.pickle test.jsonl
+uv run python -m agent_graph.run --kg data/wikidata_big/kg --questions test.jsonl --limit 1000 --out runs/test.jsonl
+```
+
+## Cấu trúc thư mục
+
+```
+src/brain/            lõi đồ thị chép từ hệ riêng tại mốc 28/09/2026, đã cắt gọn (xem PROVENANCE.md)
+src/agent_graph/      phần viết cho đồ án
+  schema.sql          lược đồ: tenants · entities · edges · acl
+  cronquestions.py    đọc data_v2, nạp đồ thị và mạng quyền
+  graph.py            lan một bước từ thực thể của câu hỏi, cắt quyền, dựng gói
+  backend.py          giao diện nơi chạy: lõi trong kho này, hoặc hệ riêng trên máy tác giả
+  run.py              chạy một tập câu, ghi kết quả
+tests/                test chạy trên Postgres nhúng; tests/data là bộ mẫu cùng định dạng data_v2
+PROVENANCE.md         nguồn gốc từng file chép từ hệ riêng
+```
+
+## Kiểm thử
+
+```bash
+uv run pytest -q
+```
+
+CI (`.github/workflows/ci.yml`) chạy `ruff`, `mypy` (strict) và `pytest` cho mỗi pull request và mỗi lần đẩy lên `main`.
+
+## Khung đánh giá (Evaluation Framework)
+
+### 1. Dữ liệu CRONQUESTIONS bản data_v2
 
 Theo yêu cầu đề tài, dự án **bắt buộc dùng bản `data_v2.zip`** (giấy phép MIT), tuyệt đối không dùng bản `data.zip` v1 vì tác giả gốc đã xác nhận bản v1 có **31.951 trên 410.000 câu bị lỗi dữ liệu**.
 
@@ -19,7 +92,7 @@ Theo yêu cầu đề tài, dự án **bắt buộc dùng bản `data_v2.zip`** 
 
 ---
 
-## 2. Khóa tập đánh giá 1.500 câu & Hạt giống (Seed)
+### 2. Khóa tập đánh giá 1.500 câu & Hạt giống (Seed)
 
 Để đảm bảo kết quả thực nghiệm là **khách quan, cố định và có thể tái lập 100%**, tập 1.500 câu hỏi được khóa chính thức với các thông số sau:
 
@@ -44,7 +117,7 @@ Theo yêu cầu đề tài, dự án **bắt buộc dùng bản `data_v2.zip`** 
 
 ---
 
-## 3. Bộ sinh mạng lưới quyền (Permission Generator)
+### 3. Bộ sinh mạng lưới quyền (Permission Generator)
 
 Do quyền thực tế của doanh nghiệp (ACL 26 nguồn SaaS) là dữ liệu bảo mật không thể công bố, đề tài sử dụng **mạng lưới quyền tổng hợp (synthetic)** được sinh có kiểm soát bằng thuật toán tất định (*deterministic*):
 
@@ -63,15 +136,9 @@ Do quyền thực tế của doanh nghiệp (ACL 26 nguồn SaaS) là dữ liệ
 
 ---
 
-## 4. Các lệnh chạy tái lập (Reproduce Steps)
+### 4. Các lệnh chạy tái lập (Reproduce Steps)
 
-Bất kỳ ai clone repository này về đều có thể chạy lại các lệnh sau. Hãy chạy lần lượt B0 → B4; B1/B2 sẽ tạo hoặc ghi đè các file trong `eval_set/` và `permission/output/`.
-
-- **B0**: audit định dạng và thống kê KG `data_v2`; ghi/cập nhật `data/audit_report.json` và báo cáo Markdown, không sửa `full.txt`.
-- **B1**: chọn và khóa 1.500 `uniq_id` với seed 42; tạo hoặc ghi đè `eval_set/selected_question_ids.json`, `eval_set/eval_set.json` và metadata.
-- **B2**: sinh roles và permission labels cho `loose`, `medium`, `strict`; tạo hoặc ghi đè file tương ứng trong `permission/output/`.
-- **B3**: chạy phép sinh hai lần vào `permission/output_repro_a/` và `permission/output_repro_b/`, rồi so sánh file để kiểm tra deterministic. Script xóa hai thư mục kiểm tra cũ này trước khi chạy; không ghi đè labels chính thức trong `permission/output/`.
-- **B4**: chạy các kiểm thử tự động bắt buộc cho permission, leakage và as-of. Lệnh này chỉ kiểm tra, không sinh kết quả thí nghiệm; exit code 0 nghĩa là toàn bộ test pass. Số test có thể thay đổi khi bộ test được cập nhật.
+Bất kỳ ai clone repository này về đều có thể chạy lại các lệnh sau để tái lập chính xác 100% dữ liệu:
 
 ```bash
 # B0. Kiểm tra tính toàn vẹn của dữ liệu data_v2
@@ -85,16 +152,16 @@ python scripts/generate_permissions.py --seed 42
 
 # B3. Xác minh tính tất định (chạy lại B2 hai lần độc lập, so sánh byte-by-byte)
 python scripts/verify_reproduce.py --seed 42
+# -> Kết quả: PASS (tất cả file nhãn byte-identical, mỗi file đủ 1500 dòng)
 
 # B4. Chạy bộ unit test bắt buộc (chấm 15 điểm tiêu chí A3)
 python -m pytest tests/ -v
+# -> Kết quả: 28 passed (7 test permission + 12 test leakage + 9 test as-of)
 ```
 
 ---
 
-## 5. Output Contract
-
-Để evaluator của Huy có thể chấm điểm độc lập cho mọi nhánh (A0, A1, A2-public, A2-private), mỗi nhánh khi chạy qua 1.500 câu phải trả về đúng cấu trúc JSON gồm 5 trường:
+### 5. Output Contract
 
 ```json
 {
@@ -111,71 +178,36 @@ python -m pytest tests/ -v
 * `reasoning`: Suy luận trung gian (bắt buộc phải có vì độ rò rỉ thông tin được đo riêng ở cả reasoning và final answer).
 * `latency_ms`, `tokens`: Thời gian chạy và số token tiêu thụ.
 
-## 5.1. Phân biệt baseline với phép đo temporal
-
-| Nhánh/ô | Permission filter | As-of filter | Vai trò |
-|---|---|---|---|
-| A0 | OFF | OFF | Baseline không chặn cả hai điều kiện. |
-| A1 | ON sau khi sinh | OFF | Sinh câu trả lời trước, rồi từ chối câu trả lời cuối nếu không xác minh được permission. Giữ reasoning nguyên bản để evaluator đo rò rỉ ở reasoning. |
-| As-of-only ablation | OFF | ON | Ô OFF/ON của ma trận 2×2; không phải A1. Dùng hiện thực A2-public ở chế độ chỉ bật as-of. |
-| A2 | ON trong truy vấn | ON trong truy vấn | Cả hai predicate được áp dụng ngay khi truy vấn; Phú phụ trách A2-public và A2-private/MCP. |
-
-Evaluator vẫn **đo temporal error** trên các câu có as-of đủ điều kiện ở A0 và A1. Việc đo nhãn as-of không bật bộ lọc as-of trong nhánh; chỉ cờ cấu hình của nhánh mới quyết định filtering.
-
-## 6. Mô hình sinh chung và A0 (CPU)
-
-Đề bài không ấn định tên model sinh; yêu cầu là các baseline dùng chung một model và ngân sách truy hồi, đồng thời phạm vi tối thiểu chạy được trên CPU. Cấu hình mặc định phần Huy (A0/A1) là **`Qwen/Qwen2.5-0.5B-Instruct`** local, CPU, cùng prompt và giới hạn 64 facts truy hồi. Code ghim revision `7ae557604adf67be50417f59c2c2f167def9a775` để tái lập. Model card ghi giấy phép Apache 2.0. Qwen weights được tải/cache tự động ở lần chạy đầu, không commit vào Git. Đây là lựa chọn thực nghiệm của nhóm, không phải model của CronKGQA hay model API. Phú cần xác nhận và dùng đúng model ID, revision, retrieval budget và token budget này cho A2-public nếu muốn so sánh trực tiếp.
-
-Trong Python environment của dự án cần có PyTorch CPU, `transformers` và `accelerate`. Lệnh cài dưới đây cài các package cần để nạp model, không tải weights model:
-
-```powershell
-python -m pip install torch transformers accelerate
-```
-
-Chạy A0 trên tập khóa. Lệnh chạy CPU với 4 thread, không bật lọc permission hay as-of; lần đầu sẽ tải model từ Hugging Face. Output JSONL có answer, reasoning tóm tắt kèm event IDs, latency và tổng token prompt+câu trả lời. Metadata ghi model, retrieval budget và generation settings:
-
-```powershell
-python scripts/run_a0.py --threads 4 --retrieval-budget 64 --max-new-tokens 128
-```
-
-Lệnh tạo `results/a0/outputs_A0.jsonl`, `metrics_A0.json` và `run_metadata.json`; sidecar ghi model revision. Mặc định đã ghim revision, và có thể truyền cùng `model_revision` qua `--revision` khi chạy A1. Dùng đúng model ID, revision, retrieval budget và token budget cho các nhánh có sinh mô hình. Hits@1 chấm đáp án hạng nhất nếu khớp một trong các gold answers; câu trả lời chứa nhiều Q-ID khác nhau bị coi là mơ hồ và không được tính điểm, tránh nhận điểm chỉ vì liệt kê một đáp án đúng ở vị trí bất kỳ. Điều này dùng chung metric, không khẳng định model Qwen là CRONKGQA. Mô hình sinh có rationale ngắn kèm event citations để evaluator chấm leakage riêng ở final và reasoning.
-
-Kết quả A0 đã lưu trong `results/a0/run_metadata.json` cũng ghi `Qwen/Qwen2.5-0.5B-Instruct`; vì vậy model mặc định của code hiện đã thống nhất với kết quả này. Trước khi so sánh với A1/A2, đối chiếu `model_revision`, `retrieval_budget_events` và `max_new_tokens` trong sidecar của từng nhánh. Không ghép kết quả nếu các cấu hình này khác nhau.
-
-Đề không buộc Huy hiện thực A2. Để kết quả so sánh hợp lệ, thống nhất với Phú model ID `Qwen/Qwen2.5-0.5B-Instruct`, cùng `model_revision`, `retrieval_budget_events=64` và `max_new_tokens=128`, đồng thời yêu cầu sidecar metadata cho A2-public/A2-private. Nếu Phú chọn model/cấu hình khác, phải ghi rõ và không diễn giải chênh lệch như chỉ do filter.
-
-Tham khảo: [Qwen2.5-0.5B-Instruct model card](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct); [CronKGQA paper](https://aclanthology.org/2021.acl-long.520/) để đối chiếu quy ước Hits@1.
-
-## 7. Chạy A1 và chấm output của mọi nhánh
-
-MCP xuất hiện ở **A2-private**: hệ riêng của Phú gọi qua MCP. A2-public là hiện thực đối chiếu trên kho công khai. Huy không xây MCP server/A2; evaluator của Huy nhận JSONL từ hai nhánh này rồi chấm bằng cùng metrics.
-
-A1 dùng cùng model, prompt, KG retrieval budget và token budget như A0; sau khi sinh mới kiểm tra event evidence với permission labels, không bật as-of. A1 từ chối câu trả lời cuối nếu không xác minh được quyền; giữ nguyên reasoning để evaluator đo riêng rò rỉ trong reasoning theo yêu cầu đề. Lệnh thứ nhất chạy mức quyền `medium` và ghi output cùng metadata. Lệnh thứ hai chấm output với nhãn quyền và gắn metadata vào metrics:
-
-```powershell
-$ModelRevision = (Get-Content results/a0/run_metadata.json | ConvertFrom-Json).model_revision
-python scripts/run_a1.py --tightness medium --threads 4 --retrieval-budget 64 --max-new-tokens 128 --revision $ModelRevision
-python scripts/evaluate_outputs.py --outputs results/a1/outputs_A1_medium.jsonl --branch A1-medium --tightness medium --permission --permission-file permission/output/permissions_medium.jsonl --run-metadata results/a1/run_metadata_A1_medium.json
-```
-
-Để chấm A0 hoặc output A2-public/A2-private, đưa JSONL đúng 5 trường vào cùng evaluator. Lệnh A0 phía dưới chỉ bật permission labels làm **tham chiếu để đo leakage**; vì không có `--permission`, nó không bật lọc quyền trong nhánh A0. Lệnh A2 bật cả `--permission` và `--asof` để ghi rõ ô thí nghiệm ON/ON. Thay `path/to/A2-public.jsonl` bằng đường dẫn output thật từ Phú:
-
-```powershell
-python scripts/evaluate_outputs.py --outputs results/a0/outputs_A0.jsonl --branch A0 --tightness medium --permission-file permission/output/permissions_medium.jsonl --run-metadata results/a0/run_metadata.json
-python scripts/evaluate_outputs.py --outputs path/to/A2-public-asof-only.jsonl --branch asof-only --tightness medium --asof --permission-file permission/output/permissions_medium.jsonl --run-metadata path/to/A2-public-asof-only-metadata.json
-python scripts/evaluate_outputs.py --outputs path/to/A2-public.jsonl --branch A2-public --tightness medium --permission --asof --permission-file permission/output/permissions_medium.jsonl --run-metadata path/to/A2-public-metadata.json
-```
-
-Ở dòng `asof-only`, permission vẫn OFF; `--permission-file` chỉ cung cấp nhãn tham chiếu để đo leakage hậu nghiệm. Ô này do A2-public chạy ở chế độ chỉ bật as-of; nó không phải A1. Với A0, có thể chấm lại **cùng một output đã sinh** ba lần bằng ba file permission labels khác nhau để đo leakage dưới từng mức quyền; đây là chấm hậu nghiệm, không phải ba lần chạy mô hình. `--outputs` là file JSONL đầu vào; `--branch` đặt tên nhánh cho file kết quả; `--tightness` ghi mức quyền; `--permission` và `--asof` đánh dấu điều kiện bật trong ô thí nghiệm; `--permission-file` chọn labels dùng để đo leakage (và làm context cho nhánh bật permission); `--run-metadata` gắn sidecar ghi model ID, retrieval/generation settings vào metrics để soát việc các nhánh dùng cùng cấu hình. `--eval-set` và `--kg` chỉ cần đổi nếu dữ liệu nằm chỗ khác; `--out-dir` đổi thư mục kết quả. Với một ô không có permission labels, leakage được ghi `null`/không đo được, không bị tính thành 0%. Evaluator giữ event ID theo số dòng zero-based của `full.txt`, bỏ qua khoảng `start > end`, và dùng khoảng `[start_year, end_year)` với `end_year=0` là còn hiệu lực.
-
-Temporal error được tính cho mọi nhánh (kể cả A0/A1 khi as-of filtering OFF) nếu evaluator suy ra được nhãn as-of và latest từ graph cho câu `simple_entity` có năm, head và một relation rõ ràng. Những template khác không bị gán nhãn thay thế bằng `answers` và không nằm trong mẫu số temporal; metrics nêu số câu đủ điều kiện qua `temporal_with_asof`. Quy tắc Hits@1 dùng cùng phép so top-1 với tập gold cho temporal scoring; câu trả lời nhắc nhiều Q-ID khác nhau là mơ hồ vì Output Contract không có thứ hạng ứng viên. Leakage attribution nối QID được nhắc tới với fact liên quan câu hỏi trong KG vì Output Contract không có trường provenance riêng; đây là phép đo dựa trên KG, không chứng minh được những sự kiện không thể suy ra từ các QID trong text.
-
-Sau khi đã chấm và có đủ 8 file `detailed_*.json`, dùng lệnh dưới đây để tổng hợp (không chạy lại mô hình). `--a0` và `--asof-only` là hai ô OFF dùng chung; sáu cờ còn lại nhận kết quả permission-only và ON/ON cho từng mức. Mỗi file phải có cùng question IDs. `--bootstrap` đặt số lần bootstrap (mặc định 10.000), `--seed` đặt seed để tái lập khoảng tin cậy, `--output` đổi đường dẫn file tổng hợp:
-
-```powershell
-python scripts/summarize_experiment.py --a0 results/evaluated/detailed_A0.json --asof-only results/evaluated/detailed_asof-only.json --permission-loose results/evaluated/detailed_permission-loose.json --permission-medium results/evaluated/detailed_permission-medium.json --permission-strict results/evaluated/detailed_permission-strict.json --both-loose results/evaluated/detailed_both-loose.json --both-medium results/evaluated/detailed_both-medium.json --both-strict results/evaluated/detailed_both-strict.json
-```
-
-Script này xuất `ΔP`, `ΔT`, `ΔPT`, khoảng tin cậy bootstrap ghép cặp 95% cho từng mức, và khoảng tin cậy cho độ lệch cộng tính `ΔPT - ΔP - ΔT` vào `results/experiment_summary.json`. Khoảng của độ lệch có chứa 0 thì dữ liệu chưa bác bỏ tính cộng tính ở mức 5%; điều đó không chứng minh giả thuyết đúng. Các đường dẫn tên nhánh chỉ là ví dụ; `--branch` khi chấm output quyết định tên file `detailed_*.json`.
-
 ---
+
+## Cách hệ thống trả lời một câu hỏi
+
+| Bước | Diễn ra thế nào |
+|---|---|
+| Thời gian | Sự kiện `[start, end]` tính theo năm thành `[1/1/start, 1/1/(end+1))` theo UTC — năm kết thúc được tính, như CronKGQA. Câu nêu năm được hỏi tại 1/1 của năm đó; câu không nêu năm được hỏi tại thời điểm hiện tại. |
+| Hạt giống | Thực thể của câu hỏi do CRONQUESTIONS cho sẵn (CronKGQA giả định nhận diện thực thể hoàn hảo). |
+| Lan | Một bước từ những hạt giống người hỏi được thấy, qua các cạnh đúng tại mốc đó. |
+| Cắt | Thực thể người hỏi không được thấy bị bỏ và được đếm; sau đó gói bị giới hạn 50 thực thể và 100 quan hệ. |
+
+Hỏi tại một mốc duy nhất là ngữ nghĩa **ảnh chụp** của hệ gốc. Nó không trả lời được câu không nêu năm — *khi nào*, *đầu tiên/cuối cùng*, *trước/sau* — và bộ chạy báo điều đó thành con số thay vì che đi.
+
+## Mạng quyền của bộ nạp
+
+Không có `--acl` thì mọi thực thể được cấp cho `anyone` — thế giới mở, dùng làm mốc so sánh. Có `--acl` thì chỉ những dòng được liệt kê tồn tại, và thực thể không dòng nào nhắc tới thì không ai thấy:
+
+```
+# item <TAB> principal [<TAB> năm bắt đầu <TAB> năm kết thúc]
+Q30	anyone
+Q76	alice@lab.test	2001	2004
+Q11696	domain:lab.test
+```
+
+Principal là một email, `group:<tên>`, `domain:<tên>` hoặc `anyone`; `--identity` chọn người hỏi.
+
+## Nguồn gốc mã nguồn
+
+`src/brain/` là một phần nhỏ của hệ riêng của tác giả (finch-brain), lấy tại mốc đóng băng 28/09/2026: chép nguyên văn từng byte rồi mới cắt gọn. [`PROVENANCE.md`](PROVENANCE.md) liệt kê từng file với git blob tại mốc và phần được giữ lại. Mọi thứ khác trong `src/agent_graph/` và `tests/` được viết cho đồ án này.
+
+## Giấy phép
+
+MIT — xem [`LICENSE`](LICENSE).

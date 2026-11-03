@@ -1,0 +1,2 @@
+P39	position held
+P54	member of sports team

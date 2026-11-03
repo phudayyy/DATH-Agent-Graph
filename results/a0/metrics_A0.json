@@ -1,0 +1,50 @@
+{
+  "branch": "A0",
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "model_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+  "device": "cpu",
+  "permission_filter": false,
+  "asof_filter": false,
+  "retrieval_budget_events": 64,
+  "max_new_tokens": 128,
+  "token_count_semantics": "prompt plus generated tokens",
+  "reasoning_available": true,
+  "n_questions": 1500,
+  "hits_at_1_correct": 325,
+  "hits_at_1": 0.21666666666666667,
+  "avg_latency_ms": 154036.6351248666,
+  "avg_tokens": 2755.482,
+  "by_question_type": {
+    "before_after": {
+      "correct": 0,
+      "total": 135,
+      "hits_at_1": 0.0
+    },
+    "first_last": {
+      "correct": 119,
+      "total": 544,
+      "hits_at_1": 0.21875
+    },
+    "simple_entity": {
+      "correct": 7,
+      "total": 360,
+      "hits_at_1": 0.019444444444444445
+    },
+    "simple_time": {
+      "correct": 167,
+      "total": 271,
+      "hits_at_1": 0.6162361623616236
+    },
+    "time_join": {
+      "correct": 32,
+      "total": 190,
+      "hits_at_1": 0.16842105263157894
+    }
+  },
+  "outputs_file": "outputs_A0.jsonl",
+  "hits_match_types": {
+    "ambiguous": 31,
+    "exact": 325,
+    "none": 1144
+  }
+}

@@ -1,6 +1,14 @@
-"""Run A1: CRONKGQA prediction followed by event-level permission filtering."""
+"""Run A1: CRONKGQA prediction followed by event-level permission filtering.
+
+A0 and A1 share one generation (same model, prompt, retrieval budget and
+greedy decoding); A1 only adds the post-generation filter. With
+--generations results/a0/outputs_A0.jsonl the script reuses those shared
+generations instead of re-running the model, so A1 is exactly the filter
+applied to A0's answers, paired question by question.
+"""
 
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -49,6 +57,9 @@ def main():
     parser.add_argument("--max-new-tokens", type=int, default=128)
     parser.add_argument("--out-dir", type=Path, default=ROOT / "results" / "a1")
     parser.add_argument("--threads", type=int, default=1)
+    parser.add_argument("--generations", type=Path,
+                        help="Reuse the shared generations in this output-contract JSONL "
+                             "(e.g. results/a0/outputs_A0.jsonl) instead of re-running the model")
     args = parser.parse_args()
     if args.threads < 1:
         parser.error("--threads must be positive")
@@ -66,8 +77,26 @@ def main():
     index_started = time.perf_counter()
     kg_index = KGEventIndex.from_file(args.kg)
     print(f"KG index ready ({time.perf_counter() - index_started:.1f}s).", flush=True)
-    print("[2/3] Loading CPU model...", flush=True)
-    engine = GenerativeKGQA(kg_index, args.model, args.max_new_tokens, args.threads, args.revision)
+    engine = None
+    generations = {}
+    source_metadata = {}
+    if args.generations:
+        for line in args.generations.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                row = json.loads(line)
+                generations[int(row["question_id"])] = row
+        if set(generations) != selected_ids:
+            raise ValueError("Shared generations do not exactly match locked eval set")
+        sidecar = args.generations.parent / "run_metadata.json"
+        source_metadata = json.loads(sidecar.read_text(encoding="utf-8")) if sidecar.exists() else {}
+        for key, expected in (("model", args.model), ("model_revision", args.revision),
+                              ("max_new_tokens", args.max_new_tokens)):
+            if source_metadata.get(key, expected) != expected:
+                raise ValueError(f"{sidecar}: {key}={source_metadata[key]!r}, expected {expected!r}")
+        print(f"[2/3] Reusing {len(generations)} shared generations from {args.generations}", flush=True)
+    else:
+        print("[2/3] Loading CPU model...", flush=True)
+        engine = GenerativeKGQA(kg_index, args.model, args.max_new_tokens, args.threads, args.revision)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     out_path = args.out_dir / f"outputs_A1_{args.tightness}.jsonl"
     print(f"[3/3] Generating predictions for {len(eval_questions)} questions...", flush=True)
@@ -78,7 +107,13 @@ def main():
         for offset in range(0, len(eval_questions), 1):
             question = eval_questions[offset]
             start = time.perf_counter()
-            prediction = engine.predict(question, args.retrieval_budget)
+            if engine is None:
+                shared = generations[int(question["uniq_id"])]
+                prediction = {key: shared[key] for key in ("answer", "reasoning", "tokens")}
+                generation_ms = float(shared["latency_ms"])
+            else:
+                prediction = engine.predict(question, args.retrieval_budget)
+                generation_ms = 0.0  # already inside this question's timer
             answer, reasoning = post_generation_filter(
                 prediction["answer"], prediction["reasoning"], permissions[int(question["uniq_id"])],
                 question_entities=set(question.get("entities", [])),
@@ -88,7 +123,7 @@ def main():
                 "question_id": int(question["uniq_id"]),
                 "answer": answer,
                 "reasoning": reasoning,
-                "latency_ms": round((time.perf_counter() - start) * 1000, 3),
+                "latency_ms": round(generation_ms + (time.perf_counter() - start) * 1000, 3),
                 "tokens": prediction["tokens"],
             }
             out.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -105,13 +140,26 @@ def main():
                   f"ETA {eta / 60:.1f}m", end="", flush=True)
     print("", flush=True)
     print(f"Saved A1 outputs: {out_path}")
-    (args.out_dir / f"run_metadata_A1_{args.tightness}.json").write_text(json.dumps({
-        "model": args.model, "model_revision": engine.resolved_revision,
+    metadata = {
+        "model": args.model,
+        "model_revision": engine.resolved_revision if engine else source_metadata.get("model_revision"),
         "requested_revision": args.revision, "device": "cpu", "retrieval_budget_events": args.retrieval_budget,
         "max_new_tokens": args.max_new_tokens, "threads": args.threads,
         "permission_filter": True, "asof_filter": False,
         "tightness": args.tightness,
-    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    }
+    if args.generations:
+        source = args.generations.resolve()
+        metadata.update({
+            "threads": source_metadata.get("threads"),
+            "generations_from": str(source.relative_to(ROOT) if source.is_relative_to(ROOT) else source),
+            "generations_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            "generations_run_metadata": source_metadata,
+            "latency_semantics": "shared generation latency recorded in generations_from "
+                                 "plus the post-filter latency measured in this run",
+        })
+    (args.out_dir / f"run_metadata_A1_{args.tightness}.json").write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

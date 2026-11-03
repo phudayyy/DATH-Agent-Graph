@@ -1,0 +1,33 @@
+{
+  "branch": "A0",
+  "tightness": "strict",
+  "permission_enabled": false,
+  "asof_enabled": false,
+  "hits_at_1": 0.21666666666666667,
+  "hits_at_1_total": 1500,
+  "hits_at_1_correct": 325,
+  "overall_leakage_rate": 0.10466666666666667,
+  "final_answer_leakage_rate": 0.08933333333333333,
+  "reasoning_leakage_rate": 0.03266666666666666,
+  "both_leakage_rate": 0.017333333333333333,
+  "leakage_scored_questions": 1500,
+  "temporal_error_rate": 0.007067137809187279,
+  "temporal_correct_rate": 0.024734982332155476,
+  "temporal_other_error_rate": 0.9681978798586572,
+  "temporal_with_asof": 283,
+  "avg_latency_ms": 154036.14866666668,
+  "avg_tokens": 2755.482,
+  "total_latency_ms": 231054223,
+  "total_tokens": 4133223,
+  "reasoning_available": true,
+  "n_questions": 1500,
+  "run_metadata": {
+    "model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "model_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+    "requested_revision": "main",
+    "device": "cpu",
+    "max_new_tokens": 128,
+    "permission_filter": false,
+    "asof_filter": false
+  }
+}

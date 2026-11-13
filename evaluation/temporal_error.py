@@ -7,6 +7,7 @@ from typing import Set, List, Dict, Optional
 from dataclasses import dataclass
 
 from .hits_at_1 import compute_hits_at_1
+from .kg_index import event_is_valid
 
 
 @dataclass
@@ -135,15 +136,16 @@ def compute_temporal_error_rate(results: List[TemporalErrorResult]) -> Dict:
     }
 
 
-def left_closed_boundary_check(event_start: int, event_end: int, as_of_year: int) -> bool:
+def left_closed_boundary_check(event_start: int, event_end: Optional[int], as_of_year: int) -> bool:
     """
-    Check if an event is valid at as_of_year using left-closed interval convention.
+    Check if an event is valid at as_of_year using the README's left-closed convention.
 
-    Left-closed (nửa khoảng đóng bên trái): [start_year, end_year)
-    Event is valid at as_of_year if: start_year <= as_of_year < end_year
+    Left-closed (nửa khoảng đóng bên trái): a fact [start_year, end_year] maps to
+    [1/1/start_year, 1/1/(end_year + 1)), so at year granularity it is valid iff
+    start_year <= as_of_year <= end_year. Same predicate as `kg_index.event_is_valid`.
 
-    For events with no end year (ongoing), treat end_year as infinity.
+    For events with no end year recorded (None), treat end_year as infinity.
     """
-    if event_end is None or event_end == 0:
+    if event_end is None:
         return event_start <= as_of_year
-    return event_start <= as_of_year < event_end
+    return event_is_valid(event_start, event_end, as_of_year)

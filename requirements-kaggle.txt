@@ -1,0 +1,4 @@
+# PyTorch is provided by Kaggle; do not reinstall it here.
+transformers>=4.45,<5
+accelerate>=0.34
+pytest>=8,<9

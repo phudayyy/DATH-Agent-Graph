@@ -52,9 +52,10 @@ class GenerativeKGQA:
     @staticmethod
     def _format_fact(event):
         event_id, head, relation, tail, start, end = event
-        end_text = "open" if end == 0 else str(end)
+        # Closed on both ends: the end year counts, as in the evaluator and CronKGQA
+        # (README, "Quy ước thời gian"). start > end is an empty interval, not an open one.
         return (f"event_id={event_id}: ({head}, {relation}, {tail}), "
-                f"valid_years=[{start},{end_text})")
+                f"valid_years=[{start},{end}]")
 
     def _prompt(self, question: Mapping[str, Any], facts: Sequence[tuple],
                 retrieval_budget: int) -> str:

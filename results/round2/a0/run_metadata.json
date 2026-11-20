@@ -1,0 +1,19 @@
+{
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "model_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+  "requested_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+  "device": "cpu",
+  "threads": 4,
+  "retrieval_budget_events": 64,
+  "max_new_tokens": 128,
+  "runner": "scripts/run_interleaved.py: A0 và A2 ba mức xen kẽ từng câu, xoay vòng thứ tự",
+  "environment": {
+    "python": "3.12.13",
+    "platform": "macOS-26.4.1-arm64-arm-64bit",
+    "torch": "2.15.0",
+    "transformers": "4.57.6"
+  },
+  "branch": "A0",
+  "permission_filter": false,
+  "asof_filter": false
+}

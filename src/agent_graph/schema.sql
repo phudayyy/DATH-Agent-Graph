@@ -55,3 +55,13 @@ CREATE TABLE acl (
     CONSTRAINT acl_range_ck CHECK (valid_to IS NULL OR valid_to > valid_from)
 );
 CREATE INDEX acl_object_idx ON acl (tenant_id, object_entity_id, principal_ref);
+
+-- Quyền theo từng cạnh. Nhãn quyền của khung đo cấp theo SỰ KIỆN, và mỗi sự kiện là một cạnh
+-- (`agent_graph.a2` nạp `edges.id` = event id). Fail-closed: cạnh không có hàng nào ở đây thì
+-- không ai thấy khi vị từ quyền bật. Không có cột thời gian vì nhãn quyền tổng hợp không đổi theo năm.
+CREATE TABLE edge_acl (
+    tenant_id     uuid   NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    edge_id       bigint NOT NULL REFERENCES edges(id) ON DELETE CASCADE,
+    principal_ref text   NOT NULL,   -- email | group:x | domain:x | anyone
+    PRIMARY KEY (tenant_id, principal_ref, edge_id)
+);

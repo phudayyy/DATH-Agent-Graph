@@ -1,0 +1,43 @@
+{
+  "branch": "A0",
+  "tightness": "loose",
+  "permission_enabled": false,
+  "asof_enabled": false,
+  "hits_at_1": 0.20933333333333334,
+  "hits_at_1_total": 1500,
+  "hits_at_1_correct": 314,
+  "overall_leakage_rate": 0.09933333333333333,
+  "final_answer_leakage_rate": 0.09466666666666666,
+  "reasoning_leakage_rate": 0.012,
+  "both_leakage_rate": 0.007333333333333333,
+  "leakage_scored_questions": 1500,
+  "temporal_error_rate": 0.007067137809187279,
+  "temporal_correct_rate": 0.02120141342756184,
+  "temporal_other_error_rate": 0.9717314487632509,
+  "temporal_with_asof": 283,
+  "avg_latency_ms": 5198.707333333334,
+  "avg_tokens": 2755.324666666667,
+  "total_latency_ms": 7798061,
+  "total_tokens": 4132987,
+  "reasoning_available": true,
+  "n_questions": 1500,
+  "run_metadata": {
+    "model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "model_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+    "requested_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+    "device": "cpu",
+    "threads": 4,
+    "retrieval_budget_events": 64,
+    "max_new_tokens": 128,
+    "runner": "scripts/run_interleaved.py: A0 và A2 ba mức xen kẽ từng câu, xoay vòng thứ tự",
+    "environment": {
+      "python": "3.12.13",
+      "platform": "macOS-26.4.1-arm64-arm-64bit",
+      "torch": "2.15.0",
+      "transformers": "4.57.6"
+    },
+    "branch": "A0",
+    "permission_filter": false,
+    "asof_filter": false
+  }
+}

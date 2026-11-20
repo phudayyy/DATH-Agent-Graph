@@ -27,7 +27,7 @@ from brain.clock import utc_now
 
 
 @contextmanager
-def _embedded_postgres() -> Iterator[str]:
+def embedded_postgres() -> Iterator[str]:
     from pgserver.postgres_server import get_server
 
     data_dir = Path(tempfile.mkdtemp(prefix="agent-graph-pg-"))
@@ -90,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.dsn:
         summary = asyncio.run(run(args, args.dsn))
     else:
-        with _embedded_postgres() as dsn:
+        with embedded_postgres() as dsn:
             summary = asyncio.run(run(args, dsn))
 
     total = sum(s["questions"] for s in summary.values())

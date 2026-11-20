@@ -17,6 +17,11 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.13",
 ]
+gen = [
+    "accelerate>=1.0",
+    "torch>=2.4",
+    "transformers>=4.46,<5",
+]
 
 [build-system]
 requires = ["hatchling"]

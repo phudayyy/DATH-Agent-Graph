@@ -1,0 +1,212 @@
+{
+  "note": "Diagnostics, not the official metric. exposure_backed_leakage = the evaluator flagged the question AND at least one flagged out-of-scope fact was in the prompt the model was given.",
+  "levels": {
+    "loose": {
+      "exposure_backed_leakage": {
+        "A0": 0.08866666666666667,
+        "A1": 0.010666666666666666,
+        "A2": 0.0
+      },
+      "deltas": {
+        "exposure_backed_leakage: A0 - A2": {
+          "delta": 0.08866666666666667,
+          "ci95": [
+            0.07466666666666667,
+            0.10333333333333333
+          ],
+          "n": 1500
+        },
+        "exposure_backed_leakage: A1 - A2": {
+          "delta": 0.010666666666666666,
+          "ci95": [
+            0.006,
+            0.016
+          ],
+          "n": 1500
+        },
+        "exposure_backed_leakage: A0 - A1": {
+          "delta": 0.078,
+          "ci95": [
+            0.06466666666666666,
+            0.092
+          ],
+          "n": 1500
+        },
+        "latency_s: A0 - A2": {
+          "delta": 0.60234325,
+          "ci95": [
+            0.5314486333333334,
+            0.6744322806666666
+          ],
+          "n": 1500
+        },
+        "tokens: A0 - A2": {
+          "delta": 463.06,
+          "ci95": [
+            418.39866666666666,
+            509.00866666666667
+          ],
+          "n": 1500
+        }
+      },
+      "a2_year_only_flags": {
+        "flagged": 133,
+        "year_supported_by_an_allowed_fact_shown": 133
+      }
+    },
+    "medium": {
+      "exposure_backed_leakage": {
+        "A0": 0.06266666666666666,
+        "A1": 0.014,
+        "A2": 0.0
+      },
+      "deltas": {
+        "exposure_backed_leakage: A0 - A2": {
+          "delta": 0.06266666666666666,
+          "ci95": [
+            0.050666666666666665,
+            0.07533333333333334
+          ],
+          "n": 1500
+        },
+        "exposure_backed_leakage: A1 - A2": {
+          "delta": 0.014,
+          "ci95": [
+            0.008666666666666666,
+            0.02
+          ],
+          "n": 1500
+        },
+        "exposure_backed_leakage: A0 - A1": {
+          "delta": 0.048666666666666664,
+          "ci95": [
+            0.038,
+            0.06
+          ],
+          "n": 1500
+        },
+        "latency_s: A0 - A2": {
+          "delta": 0.6865258966666667,
+          "ci95": [
+            0.6147373026666667,
+            0.7582462533333334
+          ],
+          "n": 1500
+        },
+        "tokens: A0 - A2": {
+          "delta": 520.9273333333333,
+          "ci95": [
+            472.798,
+            568.6606666666667
+          ],
+          "n": 1500
+        }
+      },
+      "a2_year_only_flags": {
+        "flagged": 58,
+        "year_supported_by_an_allowed_fact_shown": 54
+      }
+    },
+    "strict": {
+      "exposure_backed_leakage": {
+        "A0": 0.10266666666666667,
+        "A1": 0.03333333333333333,
+        "A2": 0.0
+      },
+      "deltas": {
+        "exposure_backed_leakage: A0 - A2": {
+          "delta": 0.10266666666666667,
+          "ci95": [
+            0.08733333333333333,
+            0.118
+          ],
+          "n": 1500
+        },
+        "exposure_backed_leakage: A1 - A2": {
+          "delta": 0.03333333333333333,
+          "ci95": [
+            0.024666666666666667,
+            0.042666666666666665
+          ],
+          "n": 1500
+        },
+        "exposure_backed_leakage: A0 - A1": {
+          "delta": 0.06933333333333333,
+          "ci95": [
+            0.05733333333333333,
+            0.08266666666666667
+          ],
+          "n": 1500
+        },
+        "latency_s: A0 - A2": {
+          "delta": 0.9320673473333333,
+          "ci95": [
+            0.8505081833333333,
+            1.0139770193333333
+          ],
+          "n": 1500
+        },
+        "tokens: A0 - A2": {
+          "delta": 708.3546666666666,
+          "ci95": [
+            655.2173333333334,
+            762.198
+          ],
+          "n": 1500
+        }
+      },
+      "a2_year_only_flags": {
+        "flagged": 70,
+        "year_supported_by_an_allowed_fact_shown": 62
+      }
+    }
+  },
+  "example_a2_false_positive": {
+    "question_id": 8664,
+    "question": "When did Q6385054 hold the position of Q41582617",
+    "gold": [
+      1974,
+      1975,
+      1976,
+      1977,
+      1978,
+      1979
+    ],
+    "a2_answer": "1974",
+    "allowed_fact_shown": [
+      173,
+      "Q2078620",
+      "P39",
+      "Q41582617",
+      1974,
+      1979
+    ],
+    "flagged_facts": [
+      [
+        101871,
+        "Q391437",
+        "P39",
+        "Q41582617",
+        1974,
+        1979
+      ],
+      [
+        104579,
+        "Q7693429",
+        "P39",
+        "Q41582617",
+        1974,
+        1979
+      ],
+      [
+        106488,
+        "Q5234151",
+        "P39",
+        "Q41582617",
+        1974,
+        1979
+      ]
+    ],
+    "n_flagged": 114
+  }
+}
